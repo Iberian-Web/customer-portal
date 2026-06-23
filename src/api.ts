@@ -1,23 +1,20 @@
-// client-portal/src/api.ts
+// customer-portal/src/api.ts
 //
-// Typed fetch utility for the Client Portal.
+// Typed fetch utility for the Customer Portal.
 // All requests automatically inject the stored Bearer token.
-// The base URL is controlled by API_URL (empty string in dev so Vite
+// The base URL is controlled by VITE_API_URL (empty string in dev so Vite
 // proxies /api → http://localhost:3001).
 
 const BASE = import.meta.env.VITE_API_URL ?? "";
-const TOKEN_KEY = "authToken";
 
 // ─── Core fetch wrapper ───────────────────────────────────────────────────────
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = localStorage.getItem(TOKEN_KEY);
-
   const res = await fetch(`${BASE}${path}`, {
     ...init,
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers ?? {}),
     },
   });
@@ -29,6 +26,33 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
+
+// ─── Enums (mirror schema.prisma — restaurant schema) ─────────────────────────
+
+export type DishCategory =
+  | "ENTRANTE"
+  | "PRINCIPAL"
+  | "POSTRE"
+  | "BEBIDA"
+  | "GUARNICION"
+  | "TAPA"
+  | "MENU_CERRADO";
+
+export type Allergen =
+  | "GLUTEN"
+  | "CRUSTACEOS"
+  | "HUEVOS"
+  | "PESCADO"
+  | "CACAHUETES"
+  | "SOJA"
+  | "LACTEOS"
+  | "FRUTOS_DE_CASCARA"
+  | "APIO"
+  | "MOSTAZA"
+  | "SESAMO"
+  | "SULFITOS"
+  | "ALTRAMUCES"
+  | "MOLUSCOS";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -90,7 +114,8 @@ export type Dish = {
   name: string;
   description: string;
   price: string;
-  category: string;
+  category: DishCategory;
+  allergens: Allergen[];
 };
 
 export type Menu = {
@@ -103,7 +128,6 @@ export type Menu = {
 
 // ─── Portal endpoints ─────────────────────────────────────────────────────────
 
-// Returns the full user profile + active instances used to build the sidebar.
 export const portalApi = {
   myAccess: () => request<MyAccess>("/api/portal/my-access"),
 };
@@ -135,7 +159,13 @@ export const menusApi = {
 export const dishesApi = {
   create: (
     menuId: number,
-    data: { name: string; description: string; price: string; category: string },
+    data: {
+      name: string;
+      description: string;
+      price: string;
+      category: DishCategory;
+      allergens?: Allergen[];
+    },
   ) =>
     request<Dish>(`/api/menus/${menuId}/dishes`, {
       method: "POST",
@@ -144,7 +174,13 @@ export const dishesApi = {
 
   update: (
     dishId: number,
-    data: Partial<{ name: string; description: string; price: string; category: string }>,
+    data: Partial<{
+      name: string;
+      description: string;
+      price: string;
+      category: DishCategory;
+      allergens: Allergen[];
+    }>,
   ) =>
     request<Dish>(`/api/dishes/${dishId}`, {
       method: "PUT",

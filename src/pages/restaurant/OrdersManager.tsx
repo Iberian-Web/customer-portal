@@ -286,7 +286,7 @@ export default function OrdersManager() {
                         {order.items.slice(0, 2).map((item) => (
                           <span
                             key={item.name}
-                            className="text-[10px] font-medium bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded truncate max-w-[120px]"
+                            className="text-[10px] font-medium bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded truncate max-w-30"
                             title={item.name}
                           >
                             {item.qty}× {item.name}

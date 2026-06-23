@@ -1,33 +1,71 @@
-// client-portal/src/pages/restaurant/MenuManager.tsx
+// customer-portal/src/pages/restaurant/MenuManager.tsx
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import { menusApi, dishesApi, type Menu, type Dish } from "../../api";
+import { menusApi, dishesApi, type Menu, type Dish, type DishCategory, type Allergen } from "../../api";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Category config (mirrors DishCategory enum in schema.prisma) ─────────────
+
+type CategoryMeta = {
+  label: string;
+  style: string;
+};
+
+const CATEGORY_META: Record<DishCategory, CategoryMeta> = {
+  ENTRANTE:     { label: "Entrante",      style: "bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20" },
+  PRINCIPAL:    { label: "Principal",     style: "bg-indigo-500/10 text-indigo-400 ring-1 ring-indigo-500/20" },
+  POSTRE:       { label: "Postre",        style: "bg-pink-500/10 text-pink-400 ring-1 ring-pink-500/20" },
+  BEBIDA:       { label: "Bebida",        style: "bg-sky-500/10 text-sky-400 ring-1 ring-sky-500/20" },
+  GUARNICION:   { label: "Guarnición",    style: "bg-green-500/10 text-green-400 ring-1 ring-green-500/20" },
+  TAPA:         { label: "Tapa",          style: "bg-orange-500/10 text-orange-400 ring-1 ring-orange-500/20" },
+  MENU_CERRADO: { label: "Menú cerrado",  style: "bg-purple-500/10 text-purple-400 ring-1 ring-purple-500/20" },
+};
+
+const CATEGORIES = Object.keys(CATEGORY_META) as DishCategory[];
+const defaultBadge = "bg-zinc-700/40 text-zinc-400 ring-1 ring-zinc-600/30";
+
+// ─── Allergen config (mirrors Allergen enum in schema.prisma) ─────────────────
+
+const ALLERGEN_LABELS: Record<Allergen, string> = {
+  GLUTEN:           "Gluten",
+  CRUSTACEOS:       "Crustáceos",
+  HUEVOS:           "Huevos",
+  PESCADO:          "Pescado",
+  CACAHUETES:       "Cacahuetes",
+  SOJA:             "Soja",
+  LACTEOS:          "Lácteos",
+  FRUTOS_DE_CASCARA:"Frutos de cáscara",
+  APIO:             "Apio",
+  MOSTAZA:          "Mostaza",
+  SESAMO:           "Sésamo",
+  SULFITOS:         "Sulfitos",
+  ALTRAMUCES:       "Altramuces",
+  MOLUSCOS:         "Moluscos",
+};
+
+const ALL_ALLERGENS = Object.keys(ALLERGEN_LABELS) as Allergen[];
+
+// ─── Form types ───────────────────────────────────────────────────────────────
 
 type DishForm = {
   name: string;
   description: string;
   price: string;
-  category: string;
+  category: DishCategory | "";
+  allergens: Allergen[];
 };
 
-const emptyDishForm: DishForm = { name: "", description: "", price: "", category: "" };
+const emptyDishForm: DishForm = {
+  name: "",
+  description: "",
+  price: "",
+  category: "",
+  allergens: [],
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const inputClass =
   "w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-colors";
-
-const CATEGORIES = ["Entrantes", "Principales", "Postres", "Bebidas"];
-
-const categoryStyles: Record<string, string> = {
-  Entrantes:   "bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20",
-  Principales: "bg-indigo-500/10 text-indigo-400 ring-1 ring-indigo-500/20",
-  Postres:     "bg-pink-500/10 text-pink-400 ring-1 ring-pink-500/20",
-  Bebidas:     "bg-sky-500/10 text-sky-400 ring-1 ring-sky-500/20",
-};
-const defaultBadge = "bg-zinc-700/40 text-zinc-400 ring-1 ring-zinc-600/30";
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -48,28 +86,55 @@ function DishModal({
   onClose,
   onSaved,
 }: {
-  dish: Dish | null; // null = create mode
+  dish: Dish | null;
   menuId: number;
   onClose: () => void;
   onSaved: (d: Dish) => void;
 }) {
   const [form, setForm] = useState<DishForm>(
-    dish ? { name: dish.name, description: dish.description, price: dish.price, category: dish.category }
-         : emptyDishForm,
+    dish
+      ? {
+          name: dish.name,
+          description: dish.description,
+          price: dish.price,
+          category: dish.category,
+          allergens: dish.allergens ?? [],
+        }
+      : emptyDishForm,
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const setField = (k: keyof DishForm, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const setField = <K extends keyof DishForm>(k: K, v: DishForm[K]) =>
+    setForm((f) => ({ ...f, [k]: v }));
+
+  const toggleAllergen = (a: Allergen) => {
+    setForm((f) => ({
+      ...f,
+      allergens: f.allergens.includes(a)
+        ? f.allergens.filter((x) => x !== a)
+        : [...f.allergens, a],
+    }));
+  };
 
   const handleSave = async () => {
-    if (!form.name.trim()) { setError("El nombre es obligatorio."); return; }
+    if (!form.name.trim()) {
+      setError("El nombre es obligatorio.");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
+      const payload = {
+        name: form.name.trim(),
+        description: form.description.trim(),
+        price: form.price.trim(),
+        category: (form.category || "PRINCIPAL") as DishCategory,
+        allergens: form.allergens,
+      };
       const saved = dish
-        ? await dishesApi.update(dish.id, form)
-        : await dishesApi.create(menuId, form);
+        ? await dishesApi.update(dish.id, payload)
+        : await dishesApi.create(menuId, payload);
       onSaved(saved);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al guardar");
@@ -82,7 +147,7 @@ function DishModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
-        className="relative bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-sm p-6 shadow-2xl space-y-4"
+        className="relative bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-base font-semibold text-zinc-100">
@@ -90,31 +155,79 @@ function DishModal({
         </h3>
 
         <div className="space-y-3">
+          {/* Name */}
           <div>
             <label className="text-xs font-medium text-zinc-400 block mb-1.5">
               Nombre <span className="text-indigo-400">*</span>
             </label>
-            <input className={inputClass} value={form.name} onChange={(e) => setField("name", e.target.value)} placeholder="Ej. Croquetas de jamón" />
+            <input
+              className={inputClass}
+              value={form.name}
+              onChange={(e) => setField("name", e.target.value)}
+              placeholder="Ej. Croquetas de jamón"
+            />
           </div>
+
+          {/* Description */}
           <div>
             <label className="text-xs font-medium text-zinc-400 block mb-1.5">Descripción</label>
-            <input className={inputClass} value={form.description} onChange={(e) => setField("description", e.target.value)} placeholder="Descripción breve" />
+            <input
+              className={inputClass}
+              value={form.description}
+              onChange={(e) => setField("description", e.target.value)}
+              placeholder="Descripción breve"
+            />
           </div>
+
+          {/* Price + Category */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-zinc-400 block mb-1.5">Precio</label>
-              <input className={inputClass} value={form.price} onChange={(e) => setField("price", e.target.value)} placeholder="9.50" />
+              <label className="text-xs font-medium text-zinc-400 block mb-1.5">Precio (€)</label>
+              <input
+                className={inputClass}
+                value={form.price}
+                onChange={(e) => setField("price", e.target.value)}
+                placeholder="9.50"
+              />
             </div>
             <div>
               <label className="text-xs font-medium text-zinc-400 block mb-1.5">Categoría</label>
               <select
                 className={inputClass}
                 value={form.category}
-                onChange={(e) => setField("category", e.target.value)}
+                onChange={(e) => setField("category", e.target.value as DishCategory | "")}
               >
                 <option value="">Sin categoría</option>
-                {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                {CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {CATEGORY_META[c].label}
+                  </option>
+                ))}
               </select>
+            </div>
+          </div>
+
+          {/* Allergens */}
+          <div>
+            <label className="text-xs font-medium text-zinc-400 block mb-2">Alérgenos</label>
+            <div className="flex flex-wrap gap-1.5">
+              {ALL_ALLERGENS.map((a) => {
+                const active = form.allergens.includes(a);
+                return (
+                  <button
+                    key={a}
+                    type="button"
+                    onClick={() => toggleAllergen(a)}
+                    className={`px-2 py-0.5 rounded-full text-[11px] font-medium transition-colors ${
+                      active
+                        ? "bg-orange-500/20 text-orange-300 ring-1 ring-orange-500/40"
+                        : "bg-zinc-800 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700"
+                    }`}
+                  >
+                    {ALLERGEN_LABELS[a]}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -126,7 +239,10 @@ function DishModal({
         )}
 
         <div className="flex justify-end gap-3 pt-1">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+          >
             Cancelar
           </button>
           <button
@@ -146,29 +262,31 @@ function DishModal({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function MenuManager() {
-  // instanceId comes from the URL: /restaurant/:instanceId/menu
+  // Route: /restaurant/:instanceId/menu
   const { instanceId } = useParams<{ instanceId: string }>();
   const instId = Number(instanceId);
 
   // ── State ──
-  const [menus, setMenus]             = useState<Menu[]>([]);
-  const [loading, setLoading]         = useState(true);
+  const [menus, setMenus]               = useState<Menu[]>([]);
+  const [loading, setLoading]           = useState(true);
   const [activeMenuId, setActiveMenuId] = useState<number | null>(null);
-  const [search, setSearch]           = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<string>("Todos");
+  const [search, setSearch]             = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<DishCategory | "Todos">("Todos");
 
   // Menu CRUD state
-  const [newMenuName, setNewMenuName] = useState("");
-  const [creatingMenu, setCreatingMenu] = useState(false);
+  const [newMenuName, setNewMenuName]     = useState("");
+  const [creatingMenu, setCreatingMenu]   = useState(false);
   const [editingMenuId, setEditingMenuId] = useState<number | null>(null);
   const [editingMenuName, setEditingMenuName] = useState("");
   const [deleteMenuConfirm, setDeleteMenuConfirm] = useState<Menu | null>(null);
-  const [deletingMenu, setDeletingMenu] = useState(false);
+  const [deletingMenu, setDeletingMenu]   = useState(false);
 
   // Dish CRUD state
-  const [dishModal, setDishModal] = useState<{ open: true; dish: Dish | null } | { open: false }>({ open: false });
+  const [dishModal, setDishModal] = useState<{ open: true; dish: Dish | null } | { open: false }>({
+    open: false,
+  });
   const [deleteDishConfirm, setDeleteDishConfirm] = useState<Dish | null>(null);
-  const [deletingDish, setDeletingDish] = useState(false);
+  const [deletingDish, setDeletingDish]   = useState(false);
 
   // ── Data loading ──
   const load = useCallback(async () => {
@@ -184,14 +302,17 @@ export default function MenuManager() {
     }
   }, [instId, activeMenuId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   // ── Derived ──
   const activeMenu = menus.find((m) => m.id === activeMenuId) ?? null;
 
   const filteredDishes = (activeMenu?.dishes ?? []).filter((d) => {
     const q = search.toLowerCase();
-    const matchSearch = d.name.toLowerCase().includes(q) || d.description.toLowerCase().includes(q);
+    const matchSearch =
+      d.name.toLowerCase().includes(q) || d.description.toLowerCase().includes(q);
     const matchCat = categoryFilter === "Todos" || d.category === categoryFilter;
     return matchSearch && matchCat;
   });
@@ -339,11 +460,14 @@ export default function MenuManager() {
                   </button>
                 )}
 
-                {/* Menu actions — only visible on hover */}
+                {/* Menu actions — visible on hover */}
                 {editingMenuId !== menu.id && (
                   <div className="absolute right-1 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-0.5">
                     <button
-                      onClick={() => { setEditingMenuId(menu.id); setEditingMenuName(menu.name); }}
+                      onClick={() => {
+                        setEditingMenuId(menu.id);
+                        setEditingMenuName(menu.name);
+                      }}
                       className="p-1 text-zinc-600 hover:text-zinc-300 rounded transition-colors"
                       title="Renombrar"
                     >
@@ -370,7 +494,9 @@ export default function MenuManager() {
               <input
                 value={newMenuName}
                 onChange={(e) => setNewMenuName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") createMenu(); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") createMenu();
+                }}
                 placeholder="Nueva carta…"
                 className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-colors"
               />
@@ -379,7 +505,9 @@ export default function MenuManager() {
                 disabled={!newMenuName.trim() || creatingMenu}
                 className="px-2 py-1.5 bg-zinc-800 border border-zinc-700 hover:border-indigo-500/50 hover:bg-indigo-500/10 disabled:opacity-40 text-zinc-400 hover:text-indigo-300 rounded-lg transition-colors"
               >
-                {creatingMenu ? <Spinner className="w-3 h-3" /> : (
+                {creatingMenu ? (
+                  <Spinner className="w-3 h-3" />
+                ) : (
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                   </svg>
@@ -397,9 +525,12 @@ export default function MenuManager() {
             ) : (
               <>
                 {/* Filters */}
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="relative flex-1">
-                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <div className="flex items-center gap-3 mb-4 flex-wrap">
+                  <div className="relative flex-1 min-w-48">
+                    <svg
+                      className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500"
+                      fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                    >
                       <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
                     </svg>
                     <input
@@ -410,8 +541,18 @@ export default function MenuManager() {
                       className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-10 pr-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-colors"
                     />
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    {["Todos", ...CATEGORIES].map((cat) => (
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <button
+                      onClick={() => setCategoryFilter("Todos")}
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                        categoryFilter === "Todos"
+                          ? "bg-indigo-600 text-white"
+                          : "bg-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700"
+                      }`}
+                    >
+                      Todos
+                    </button>
+                    {CATEGORIES.map((cat) => (
                       <button
                         key={cat}
                         onClick={() => setCategoryFilter(cat)}
@@ -421,7 +562,7 @@ export default function MenuManager() {
                             : "bg-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700"
                         }`}
                       >
-                        {cat}
+                        {CATEGORY_META[cat].label}
                       </button>
                     ))}
                   </div>
@@ -431,16 +572,20 @@ export default function MenuManager() {
                 <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
                   <table className="w-full text-sm table-fixed">
                     <colgroup>
-                      <col className="w-[28%]" />
-                      <col className="w-[30%]" />
+                      <col className="w-[24%]" />
+                      <col className="w-[26%]" />
                       <col className="w-[16%]" />
-                      <col className="w-[14%]" />
-                      <col className="w-[12%]" />
+                      <col className="w-[10%]" />
+                      <col className="w-[16%]" />
+                      <col className="w-[8%]" />
                     </colgroup>
                     <thead>
                       <tr className="border-b border-zinc-800 text-left">
-                        {["Nombre", "Descripción", "Categoría", "Precio", ""].map((h) => (
-                          <th key={h} className="px-5 py-3.5 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">
+                        {["Nombre", "Descripción", "Categoría", "Precio", "Alérgenos", ""].map((h) => (
+                          <th
+                            key={h}
+                            className="px-4 py-3.5 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider"
+                          >
                             {h}
                           </th>
                         ))}
@@ -450,31 +595,57 @@ export default function MenuManager() {
                       {filteredDishes.length > 0 ? (
                         filteredDishes.map((dish) => (
                           <tr key={dish.id} className="hover:bg-zinc-800/50 transition-colors">
-                            <td className="px-5 py-3.5">
+                            <td className="px-4 py-3.5">
                               <span className="block font-medium text-zinc-200 truncate" title={dish.name}>
                                 {dish.name}
                               </span>
                             </td>
-                            <td className="px-5 py-3.5">
+                            <td className="px-4 py-3.5">
                               <span className="block text-xs text-zinc-400 truncate" title={dish.description}>
                                 {dish.description || "—"}
                               </span>
                             </td>
-                            <td className="px-5 py-3.5">
+                            <td className="px-4 py-3.5">
                               {dish.category ? (
-                                <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap ${categoryStyles[dish.category] ?? defaultBadge}`}>
-                                  {dish.category}
+                                <span
+                                  className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap ${
+                                    CATEGORY_META[dish.category]?.style ?? defaultBadge
+                                  }`}
+                                >
+                                  {CATEGORY_META[dish.category]?.label ?? dish.category}
                                 </span>
                               ) : (
                                 <span className="text-zinc-600 text-xs">—</span>
                               )}
                             </td>
-                            <td className="px-5 py-3.5">
+                            <td className="px-4 py-3.5">
                               <span className="text-zinc-200 font-medium tabular-nums">
                                 {dish.price ? `${dish.price} €` : "—"}
                               </span>
                             </td>
-                            <td className="px-5 py-3.5">
+                            <td className="px-4 py-3.5">
+                              {dish.allergens && dish.allergens.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {dish.allergens.slice(0, 3).map((a) => (
+                                    <span
+                                      key={a}
+                                      title={ALLERGEN_LABELS[a]}
+                                      className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-500/10 text-orange-400 ring-1 ring-orange-500/20 whitespace-nowrap"
+                                    >
+                                      {ALLERGEN_LABELS[a]}
+                                    </span>
+                                  ))}
+                                  {dish.allergens.length > 3 && (
+                                    <span className="text-[10px] text-zinc-500">
+                                      +{dish.allergens.length - 3}
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-zinc-600 text-xs">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3.5">
                               <div className="flex items-center gap-1">
                                 <button
                                   onClick={() => setDishModal({ open: true, dish })}
@@ -500,7 +671,7 @@ export default function MenuManager() {
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={5} className="px-5 py-12 text-center text-zinc-500 text-sm">
+                          <td colSpan={6} className="px-5 py-12 text-center text-zinc-500 text-sm">
                             {search || categoryFilter !== "Todos"
                               ? "No se encontraron platos con ese filtro."
                               : "Esta carta no tiene platos. Añade el primero."}
@@ -514,7 +685,9 @@ export default function MenuManager() {
                 <p className="text-xs text-zinc-600 mt-3">
                   {filteredDishes.length} resultado{filteredDishes.length !== 1 ? "s" : ""}
                   {categoryFilter !== "Todos" && (
-                    <span className="ml-2 text-indigo-500/60">· filtrado por {categoryFilter}</span>
+                    <span className="ml-2 text-indigo-500/60">
+                      · filtrado por {CATEGORY_META[categoryFilter as DishCategory]?.label}
+                    </span>
                   )}
                 </p>
               </>
@@ -535,15 +708,26 @@ export default function MenuManager() {
 
       {/* ── Delete dish confirmation ── */}
       {deleteDishConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4" onClick={() => setDeleteDishConfirm(null)}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-4"
+          onClick={() => setDeleteDishConfirm(null)}
+        >
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-          <div className="relative bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-sm p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="relative bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-sm p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="text-base font-semibold text-zinc-100 mb-2">¿Eliminar plato?</h3>
             <p className="text-sm text-zinc-500 mb-6">
-              Se eliminará <span className="text-zinc-300 font-medium">{deleteDishConfirm.name}</span>. Esta acción no se puede deshacer.
+              Se eliminará{" "}
+              <span className="text-zinc-300 font-medium">{deleteDishConfirm.name}</span>. Esta
+              acción no se puede deshacer.
             </p>
             <div className="flex justify-end gap-3">
-              <button onClick={() => setDeleteDishConfirm(null)} className="px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors">
+              <button
+                onClick={() => setDeleteDishConfirm(null)}
+                className="px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+              >
                 Cancelar
               </button>
               <button
@@ -561,15 +745,26 @@ export default function MenuManager() {
 
       {/* ── Delete menu confirmation ── */}
       {deleteMenuConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4" onClick={() => setDeleteMenuConfirm(null)}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-4"
+          onClick={() => setDeleteMenuConfirm(null)}
+        >
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-          <div className="relative bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-sm p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="relative bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-sm p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="text-base font-semibold text-zinc-100 mb-2">¿Eliminar carta?</h3>
             <p className="text-sm text-zinc-500 mb-6">
-              Se eliminará <span className="text-zinc-300 font-medium">{deleteMenuConfirm.name}</span> y todos sus platos. Esta acción no se puede deshacer.
+              Se eliminará{" "}
+              <span className="text-zinc-300 font-medium">{deleteMenuConfirm.name}</span> y todos
+              sus platos. Esta acción no se puede deshacer.
             </p>
             <div className="flex justify-end gap-3">
-              <button onClick={() => setDeleteMenuConfirm(null)} className="px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors">
+              <button
+                onClick={() => setDeleteMenuConfirm(null)}
+                className="px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+              >
                 Cancelar
               </button>
               <button

@@ -1,4 +1,4 @@
-// client-portal/src/contexts/AuthContext.tsx
+// customer-portal/src/contexts/AuthContext.tsx
 import React, {
   createContext,
   useContext,
@@ -58,12 +58,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const authFetch = useCallback(async (path: string, init?: RequestInit): Promise<Response> => {
-    const stored = localStorage.getItem(TOKEN_KEY);
     return fetch(`${BASE}${path}`, {
       ...init,
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
-        ...(stored ? { Authorization: `Bearer ${stored}` } : {}),
         ...(init?.headers ?? {}),
       },
     });

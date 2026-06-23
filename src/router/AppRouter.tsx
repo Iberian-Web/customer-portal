@@ -1,4 +1,4 @@
-// client-portal/src/router/AppRouter.tsx
+// customer-portal/src/router/AppRouter.tsx
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import ScrollToTop from "../components/ScrollToTop";
 import MainLayout from "../layouts/MainLayout";
@@ -46,21 +46,14 @@ export default function AppRouter() {
         <Route
           element={isAuthenticated ? <MainLayout /> : <Navigate to="/login" replace />}
         >
-          {/* Authenticated home page shown when the user visits "/" */}
           <Route index element={<Home />} />
 
-          {/* Restaurant module — :instanceId scopes data to the user's instance */}
           <Route path="/restaurant/:instanceId/menu"         element={<MenuManager />} />
           {/* <Route path="/restaurant/:instanceId/orders"        element={<OrdersManager />} /> */}
           {/* <Route path="/restaurant/:instanceId/reservations"  element={<ReservationsManager />} /> */}
 
-          {/* Real-estate module */}
           {/* <Route path="/realestate/:instanceId/properties"    element={<PropertiesManager />} /> */}
-
-          {/* Clinic / E-commerce modules follow the same pattern */}
         </Route>
-
-        {/* Catch-all */}
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
