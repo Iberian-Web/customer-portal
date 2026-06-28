@@ -6,8 +6,8 @@ import Login from "../pages/Login";
 import Home from "../pages/Home";
 import NotFound from "../pages/NotFound";
 import MenuManager from "../pages/restaurant/MenuManager";
-// import OrdersManager from "../pages/restaurant/OrdersManager";
-// import ReservationsManager from "../pages/restaurant/ReservationsManager";
+import OrdersManager from "../pages/restaurant/OrdersManager";
+import ReservationsManager from "../pages/restaurant/ReservationsManager";
 // import PropertiesManager from "../pages/realestate/PropertiesManager";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -48,9 +48,9 @@ export default function AppRouter() {
         >
           <Route index element={<Home />} />
 
-          <Route path="/restaurant/:instanceId/menu"         element={<MenuManager />} />
-          {/* <Route path="/restaurant/:instanceId/orders"        element={<OrdersManager />} /> */}
-          {/* <Route path="/restaurant/:instanceId/reservations"  element={<ReservationsManager />} /> */}
+          <Route path="/restaurant/:instanceId/menu"          element={<MenuManager />} />
+          <Route path="/restaurant/:instanceId/orders"        element={<OrdersManager />} />
+          <Route path="/restaurant/:instanceId/reservations"  element={<ReservationsManager />} />
 
           {/* <Route path="/realestate/:instanceId/properties"    element={<PropertiesManager />} /> */}
         </Route>

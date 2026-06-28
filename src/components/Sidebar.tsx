@@ -5,10 +5,6 @@ import { portalApi, type MyAccess, type Instance } from "../api";
 import { useAuth } from "../contexts/AuthContext";
 
 // ─── Service → route/icon registry ───────────────────────────────────────────
-//
-// Keys must match EXACTLY the service names defined in APP_CATALOGUE in index.ts.
-// Add new entries here whenever the backend catalogue changes.
-
 type NavEntry = {
   label: string;
   to: string;
@@ -18,7 +14,6 @@ type NavEntry = {
 const iconClass = "w-4 h-4";
 
 const SERVICE_ROUTE_MAP: Record<string, (instanceId: number) => NavEntry> = {
-  // ── Restaurante ──────────────────────────────────────────────────────────
   "Reservas": (id) => ({
     label: "Reservas",
     to: `/restaurant/${id}/reservations`,
@@ -46,8 +41,6 @@ const SERVICE_ROUTE_MAP: Record<string, (instanceId: number) => NavEntry> = {
       </svg>
     ),
   }),
-
-  // ── Inmobiliaria ─────────────────────────────────────────────────────────
   "Manager": (id) => ({
     label: "Propiedades",
     to: `/realestate/${id}/manager`,
@@ -59,14 +52,11 @@ const SERVICE_ROUTE_MAP: Record<string, (instanceId: number) => NavEntry> = {
   }),
 };
 
-// ─── Section grouping ─────────────────────────────────────────────────────────
-// Maps application names (from DB) to sidebar section labels.
 const APP_SECTION_LABEL: Record<string, string> = {
   "Restaurante":  "Restaurante",
   "Inmobiliaria": "Inmobiliaria",
 };
 
-// ─── Per-instance nav builder ─────────────────────────────────────────────────
 function buildNavSections(instances: Instance[]): Array<{
   sectionLabel: string;
   items: NavEntry[];
@@ -75,54 +65,35 @@ function buildNavSections(instances: Instance[]): Array<{
     .map((inst) => {
       const appName = inst.application.name;
       const sectionLabel = APP_SECTION_LABEL[appName] ?? appName;
-
-      // Only include services that are active and have a known route
       const items = inst.instanceServices
         .filter((is) => is.active)
         .map((is) => SERVICE_ROUTE_MAP[is.service.name]?.(inst.id))
         .filter((entry): entry is NavEntry => entry !== undefined);
-
       return { sectionLabel, items };
     })
     .filter((s) => s.items.length > 0);
 }
 
-// ─── Sidebar ──────────────────────────────────────────────────────────────────
-
-export default function Sidebar() {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
-
-  const [access, setAccess] = useState<MyAccess | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    portalApi
-      .myAccess()
-      .then(setAccess)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
-
-  const handleLogout = async () => {
-    await logout();
-    navigate("/login");
-  };
-
-  const sections = access ? buildNavSections(access.instances) : [];
-
-  const initials = (user?.name ?? "?")
-    .split(" ")
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase();
-
+// ─── Shared sidebar content ───────────────────────────────────────────────────
+function SidebarContent({
+  loading,
+  sections,
+  initials,
+  user,
+  onLinkClick,
+  handleLogout,
+}: {
+  loading: boolean;
+  sections: Array<{ sectionLabel: string; items: NavEntry[] }>;
+  initials: string;
+  user: { name?: string; company?: string; email?: string } | null;
+  onLinkClick?: () => void;
+  handleLogout: () => void;
+}) {
   return (
-    <aside className="w-56 shrink-0 bg-zinc-900 border-r border-zinc-800 flex flex-col h-screen sticky top-0">
-
+    <>
       {/* Logo */}
-      <div className="h-16 flex items-center px-5 border-b border-zinc-800">
+      <div className="h-16 flex items-center px-5 border-b border-zinc-800 shrink-0">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-md bg-indigo-600 flex items-center justify-center shrink-0">
             <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -155,6 +126,7 @@ export default function Sidebar() {
                     key={to}
                     to={to}
                     end
+                    onClick={onLinkClick}
                     className={({ isActive }) =>
                       `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                         isActive
@@ -174,7 +146,7 @@ export default function Sidebar() {
       </nav>
 
       {/* User + logout */}
-      <div className="px-3 py-4 border-t border-zinc-800">
+      <div className="px-3 py-4 border-t border-zinc-800 shrink-0">
         <div className="flex items-center gap-3 px-2 py-2 rounded-md">
           <div className="w-7 h-7 rounded-full bg-zinc-700 flex items-center justify-center text-xs font-semibold text-zinc-300 shrink-0">
             {initials}
@@ -194,6 +166,105 @@ export default function Sidebar() {
           Cerrar sesión
         </button>
       </div>
-    </aside>
+    </>
+  );
+}
+
+// ─── Sidebar ──────────────────────────────────────────────────────────────────
+export default function Sidebar() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const [access, setAccess] = useState<MyAccess | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    portalApi
+      .myAccess()
+      .then(setAccess)
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleLogout = async () => {
+    await logout();
+    navigate("/login");
+  };
+
+  const sections = access ? buildNavSections(access.instances) : [];
+
+  const initials = (user?.name ?? "?")
+    .split(" ")
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase();
+
+  const closeDrawer = () => setMobileOpen(false);
+
+  return (
+    <>
+      {/* ── Mobile top bar ─────────────────────────────────────────────────── */}
+      <header className="md:hidden sticky top-0 z-40 h-14 flex items-center justify-between px-4 bg-zinc-900 border-b border-zinc-800">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-md bg-indigo-600 flex items-center justify-center shrink-0">
+            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+            </svg>
+          </div>
+          <span className="text-sm font-semibold text-zinc-100 tracking-tight">Mi Portal</span>
+        </div>
+
+        {/* Hamburger */}
+        <button
+          onClick={() => setMobileOpen(!mobileOpen)}
+          className="relative w-9 h-9 flex items-center justify-center text-zinc-400 hover:text-zinc-100 focus:outline-none"
+          aria-label="Abrir menú"
+        >
+          <div className="absolute w-5 h-4 flex flex-col justify-between items-center">
+            <span className={`h-0.5 w-full bg-current rounded transform transition-all duration-300 ${mobileOpen ? "rotate-45 translate-y-1.75" : ""}`} />
+            <span className={`h-0.5 w-full bg-current rounded transition-all duration-300 ${mobileOpen ? "opacity-0 scale-0" : ""}`} />
+            <span className={`h-0.5 w-full bg-current rounded transform transition-all duration-300 ${mobileOpen ? "-rotate-45 -translate-y-2.25" : ""}`} />
+          </div>
+        </button>
+      </header>
+
+      {/* ── Mobile drawer backdrop ──────────────────────────────────────────── */}
+      {mobileOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+          onClick={closeDrawer}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* ── Mobile drawer ───────────────────────────────────────────────────── */}
+      <div
+        className={`md:hidden fixed top-0 left-0 z-50 h-full w-64 bg-zinc-900 flex flex-col transform transition-transform duration-300 ease-in-out ${
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <SidebarContent
+          loading={loading}
+          sections={sections}
+          initials={initials}
+          user={user ?? null}
+          onLinkClick={closeDrawer}
+          handleLogout={handleLogout}
+        />
+      </div>
+
+      {/* ── Desktop sidebar (unchanged) ─────────────────────────────────────── */}
+      <aside className="hidden md:flex w-56 shrink-0 bg-zinc-900 border-r border-zinc-800 flex-col h-screen sticky top-0">
+        <SidebarContent
+          loading={loading}
+          sections={sections}
+          initials={initials}
+          user={user ?? null}
+          handleLogout={handleLogout}
+        />
+      </aside>
+    </>
   );
 }

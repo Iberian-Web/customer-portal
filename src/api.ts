@@ -54,6 +54,13 @@ export type Allergen =
   | "ALTRAMUCES"
   | "MOLUSCOS";
 
+export type ReservationStatus =
+  | "PENDING"
+  | "CONFIRMED"
+  | "CANCELLED"
+  | "COMPLETED"
+  | "NO_SHOW";
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type User = {
@@ -126,6 +133,31 @@ export type Menu = {
   dishes: Dish[];
 };
 
+export type Reservation = {
+  id: number;
+  instanceId: number;
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string;
+  reservationDate: string; // ISO 8601 — use new Date(r.reservationDate) to parse
+  guests: number;
+  notes: string;
+  status: ReservationStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ReservationCreate = {
+  customerName: string;
+  customerPhone: string;
+  customerEmail?: string;
+  reservationDate: string; // ISO 8601
+  guests: number;
+  notes?: string;
+};
+
+export type ReservationUpdate = Partial<ReservationCreate & { status: ReservationStatus }>;
+
 // ─── Portal endpoints ─────────────────────────────────────────────────────────
 
 export const portalApi = {
@@ -189,4 +221,38 @@ export const dishesApi = {
 
   remove: (dishId: number) =>
     request<void>(`/api/dishes/${dishId}`, { method: "DELETE" }),
+};
+
+// ─── Reservation endpoints ────────────────────────────────────────────────────
+
+export const reservationsApi = {
+  // List reservations for an instance. Optionally filter by date (YYYY-MM-DD) or status.
+  list: (instanceId: number, filters?: { date?: string; status?: ReservationStatus }) => {
+    const params = new URLSearchParams();
+    if (filters?.date) params.set("date", filters.date);
+    if (filters?.status) params.set("status", filters.status);
+    const qs = params.toString();
+    return request<Reservation[]>(`/api/instances/${instanceId}/reservations${qs ? `?${qs}` : ""}`);
+  },
+
+  create: (instanceId: number, data: ReservationCreate) =>
+    request<Reservation>(`/api/instances/${instanceId}/reservations`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  update: (reservationId: number, data: ReservationUpdate) =>
+    request<Reservation>(`/api/reservations/${reservationId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  updateStatus: (reservationId: number, status: ReservationStatus) =>
+    request<Reservation>(`/api/reservations/${reservationId}`, {
+      method: "PUT",
+      body: JSON.stringify({ status }),
+    }),
+
+  remove: (reservationId: number) =>
+    request<void>(`/api/reservations/${reservationId}`, { method: "DELETE" }),
 };
