@@ -55,11 +55,7 @@ export type Allergen =
   | "MOLUSCOS";
 
 export type ReservationStatus =
-  | "PENDING"
-  | "CONFIRMED"
-  | "CANCELLED"
-  | "COMPLETED"
-  | "NO_SHOW";
+  "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED" | "NO_SHOW";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -156,7 +152,9 @@ export type ReservationCreate = {
   notes?: string;
 };
 
-export type ReservationUpdate = Partial<ReservationCreate & { status: ReservationStatus }>;
+export type ReservationUpdate = Partial<
+  ReservationCreate & { status: ReservationStatus }
+>;
 
 // ─── Portal endpoints ─────────────────────────────────────────────────────────
 
@@ -227,12 +225,17 @@ export const dishesApi = {
 
 export const reservationsApi = {
   // List reservations for an instance. Optionally filter by date (YYYY-MM-DD) or status.
-  list: (instanceId: number, filters?: { date?: string; status?: ReservationStatus }) => {
+  list: (
+    instanceId: number,
+    filters?: { date?: string; status?: ReservationStatus },
+  ) => {
     const params = new URLSearchParams();
     if (filters?.date) params.set("date", filters.date);
     if (filters?.status) params.set("status", filters.status);
     const qs = params.toString();
-    return request<Reservation[]>(`/api/instances/${instanceId}/reservations${qs ? `?${qs}` : ""}`);
+    return request<Reservation[]>(
+      `/api/instances/${instanceId}/reservations${qs ? `?${qs}` : ""}`,
+    );
   },
 
   create: (instanceId: number, data: ReservationCreate) =>

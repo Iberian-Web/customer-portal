@@ -6,7 +6,9 @@ export default function NotFound() {
       <p className="text-xs font-semibold text-indigo-400 uppercase tracking-widest mb-3">
         Error 404
       </p>
-      <h1 className="text-3xl font-semibold text-zinc-100 mb-2">Página no encontrada</h1>
+      <h1 className="text-3xl font-semibold text-zinc-100 mb-2">
+        Página no encontrada
+      </h1>
       <p className="text-sm text-zinc-500 mb-8 max-w-sm">
         La ruta que has solicitado no existe o ha sido eliminada.
       </p>
@@ -21,7 +23,11 @@ export default function NotFound() {
           stroke="currentColor"
           strokeWidth={2}
         >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M10 19l-7-7m0 0l7-7m-7 7h18"
+          />
         </svg>
         Volver al inicio
       </Link>

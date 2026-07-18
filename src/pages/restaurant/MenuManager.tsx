@@ -1,7 +1,14 @@
 // customer-portal/src/pages/restaurant/MenuManager.tsx
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import { menusApi, dishesApi, type Menu, type Dish, type DishCategory, type Allergen } from "../../api";
+import {
+  menusApi,
+  dishesApi,
+  type Menu,
+  type Dish,
+  type DishCategory,
+  type Allergen,
+} from "../../api";
 
 // ─── Category config (mirrors DishCategory enum in schema.prisma) ─────────────
 
@@ -11,13 +18,34 @@ type CategoryMeta = {
 };
 
 const CATEGORY_META: Record<DishCategory, CategoryMeta> = {
-  ENTRANTE:     { label: "Entrante",      style: "bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20" },
-  PRINCIPAL:    { label: "Principal",     style: "bg-indigo-500/10 text-indigo-400 ring-1 ring-indigo-500/20" },
-  POSTRE:       { label: "Postre",        style: "bg-pink-500/10 text-pink-400 ring-1 ring-pink-500/20" },
-  BEBIDA:       { label: "Bebida",        style: "bg-sky-500/10 text-sky-400 ring-1 ring-sky-500/20" },
-  GUARNICION:   { label: "Guarnición",    style: "bg-green-500/10 text-green-400 ring-1 ring-green-500/20" },
-  TAPA:         { label: "Tapa",          style: "bg-orange-500/10 text-orange-400 ring-1 ring-orange-500/20" },
-  MENU_CERRADO: { label: "Menú cerrado",  style: "bg-purple-500/10 text-purple-400 ring-1 ring-purple-500/20" },
+  ENTRANTE: {
+    label: "Entrante",
+    style: "bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20",
+  },
+  PRINCIPAL: {
+    label: "Principal",
+    style: "bg-indigo-500/10 text-indigo-400 ring-1 ring-indigo-500/20",
+  },
+  POSTRE: {
+    label: "Postre",
+    style: "bg-pink-500/10 text-pink-400 ring-1 ring-pink-500/20",
+  },
+  BEBIDA: {
+    label: "Bebida",
+    style: "bg-sky-500/10 text-sky-400 ring-1 ring-sky-500/20",
+  },
+  GUARNICION: {
+    label: "Guarnición",
+    style: "bg-green-500/10 text-green-400 ring-1 ring-green-500/20",
+  },
+  TAPA: {
+    label: "Tapa",
+    style: "bg-orange-500/10 text-orange-400 ring-1 ring-orange-500/20",
+  },
+  MENU_CERRADO: {
+    label: "Menú cerrado",
+    style: "bg-purple-500/10 text-purple-400 ring-1 ring-purple-500/20",
+  },
 };
 
 const CATEGORIES = Object.keys(CATEGORY_META) as DishCategory[];
@@ -26,20 +54,20 @@ const defaultBadge = "bg-zinc-700/40 text-zinc-400 ring-1 ring-zinc-600/30";
 // ─── Allergen config (mirrors Allergen enum in schema.prisma) ─────────────────
 
 const ALLERGEN_LABELS: Record<Allergen, string> = {
-  GLUTEN:           "Gluten",
-  CRUSTACEOS:       "Crustáceos",
-  HUEVOS:           "Huevos",
-  PESCADO:          "Pescado",
-  CACAHUETES:       "Cacahuetes",
-  SOJA:             "Soja",
-  LACTEOS:          "Lácteos",
-  FRUTOS_DE_CASCARA:"Frutos de cáscara",
-  APIO:             "Apio",
-  MOSTAZA:          "Mostaza",
-  SESAMO:           "Sésamo",
-  SULFITOS:         "Sulfitos",
-  ALTRAMUCES:       "Altramuces",
-  MOLUSCOS:         "Moluscos",
+  GLUTEN: "Gluten",
+  CRUSTACEOS: "Crustáceos",
+  HUEVOS: "Huevos",
+  PESCADO: "Pescado",
+  CACAHUETES: "Cacahuetes",
+  SOJA: "Soja",
+  LACTEOS: "Lácteos",
+  FRUTOS_DE_CASCARA: "Frutos de cáscara",
+  APIO: "Apio",
+  MOSTAZA: "Mostaza",
+  SESAMO: "Sésamo",
+  SULFITOS: "Sulfitos",
+  ALTRAMUCES: "Altramuces",
+  MOLUSCOS: "Moluscos",
 };
 
 const ALL_ALLERGENS = Object.keys(ALLERGEN_LABELS) as Allergen[];
@@ -71,9 +99,24 @@ const inputClass =
 
 function Spinner({ className = "w-3.5 h-3.5" }: { className?: string }) {
   return (
-    <svg className={`${className} animate-spin`} fill="none" viewBox="0 0 24 24">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+    <svg
+      className={`${className} animate-spin`}
+      fill="none"
+      viewBox="0 0 24 24"
+    >
+      <circle
+        className="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        strokeWidth="4"
+      />
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8v8H4z"
+      />
     </svg>
   );
 }
@@ -144,7 +187,10 @@ function DishModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      onClick={onClose}
+    >
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
         className="relative bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto"
@@ -170,7 +216,9 @@ function DishModal({
 
           {/* Description */}
           <div>
-            <label className="text-xs font-medium text-zinc-400 block mb-1.5">Descripción</label>
+            <label className="text-xs font-medium text-zinc-400 block mb-1.5">
+              Descripción
+            </label>
             <input
               className={inputClass}
               value={form.description}
@@ -182,7 +230,9 @@ function DishModal({
           {/* Price + Category */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-zinc-400 block mb-1.5">Precio (€)</label>
+              <label className="text-xs font-medium text-zinc-400 block mb-1.5">
+                Precio (€)
+              </label>
               <input
                 className={inputClass}
                 value={form.price}
@@ -191,11 +241,15 @@ function DishModal({
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-zinc-400 block mb-1.5">Categoría</label>
+              <label className="text-xs font-medium text-zinc-400 block mb-1.5">
+                Categoría
+              </label>
               <select
                 className={inputClass}
                 value={form.category}
-                onChange={(e) => setField("category", e.target.value as DishCategory | "")}
+                onChange={(e) =>
+                  setField("category", e.target.value as DishCategory | "")
+                }
               >
                 <option value="">Sin categoría</option>
                 {CATEGORIES.map((c) => (
@@ -209,7 +263,9 @@ function DishModal({
 
           {/* Allergens */}
           <div>
-            <label className="text-xs font-medium text-zinc-400 block mb-2">Alérgenos</label>
+            <label className="text-xs font-medium text-zinc-400 block mb-2">
+              Alérgenos
+            </label>
             <div className="flex flex-wrap gap-1.5">
               {ALL_ALLERGENS.map((a) => {
                 const active = form.allergens.includes(a);
@@ -267,26 +323,30 @@ export default function MenuManager() {
   const instId = Number(instanceId);
 
   // ── State ──
-  const [menus, setMenus]               = useState<Menu[]>([]);
-  const [loading, setLoading]           = useState(true);
+  const [menus, setMenus] = useState<Menu[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeMenuId, setActiveMenuId] = useState<number | null>(null);
-  const [search, setSearch]             = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<DishCategory | "Todos">("Todos");
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<DishCategory | "Todos">(
+    "Todos",
+  );
 
   // Menu CRUD state
-  const [newMenuName, setNewMenuName]     = useState("");
-  const [creatingMenu, setCreatingMenu]   = useState(false);
+  const [newMenuName, setNewMenuName] = useState("");
+  const [creatingMenu, setCreatingMenu] = useState(false);
   const [editingMenuId, setEditingMenuId] = useState<number | null>(null);
   const [editingMenuName, setEditingMenuName] = useState("");
   const [deleteMenuConfirm, setDeleteMenuConfirm] = useState<Menu | null>(null);
-  const [deletingMenu, setDeletingMenu]   = useState(false);
+  const [deletingMenu, setDeletingMenu] = useState(false);
 
   // Dish CRUD state
-  const [dishModal, setDishModal] = useState<{ open: true; dish: Dish | null } | { open: false }>({
+  const [dishModal, setDishModal] = useState<
+    { open: true; dish: Dish | null } | { open: false }
+  >({
     open: false,
   });
   const [deleteDishConfirm, setDeleteDishConfirm] = useState<Dish | null>(null);
-  const [deletingDish, setDeletingDish]   = useState(false);
+  const [deletingDish, setDeletingDish] = useState(false);
 
   // ── Data loading ──
   const load = useCallback(async () => {
@@ -312,8 +372,10 @@ export default function MenuManager() {
   const filteredDishes = (activeMenu?.dishes ?? []).filter((d) => {
     const q = search.toLowerCase();
     const matchSearch =
-      d.name.toLowerCase().includes(q) || d.description.toLowerCase().includes(q);
-    const matchCat = categoryFilter === "Todos" || d.category === categoryFilter;
+      d.name.toLowerCase().includes(q) ||
+      d.description.toLowerCase().includes(q);
+    const matchCat =
+      categoryFilter === "Todos" || d.category === categoryFilter;
     return matchSearch && matchCat;
   });
 
@@ -335,7 +397,9 @@ export default function MenuManager() {
     if (!editingMenuName.trim()) return;
     try {
       const updated = await menusApi.update(menuId, editingMenuName.trim());
-      setMenus((prev) => prev.map((m) => (m.id === menuId ? { ...m, name: updated.name } : m)));
+      setMenus((prev) =>
+        prev.map((m) => (m.id === menuId ? { ...m, name: updated.name } : m)),
+      );
     } finally {
       setEditingMenuId(null);
     }
@@ -395,11 +459,12 @@ export default function MenuManager() {
 
   return (
     <div className="px-8 py-8 max-w-6xl mx-auto w-full">
-
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-xl font-semibold text-zinc-100">Carta del restaurante</h1>
+          <h1 className="text-xl font-semibold text-zinc-100">
+            Carta del restaurante
+          </h1>
           <p className="text-sm text-zinc-500 mt-0.5">
             {menus.length} {menus.length === 1 ? "carta" : "cartas"} ·{" "}
             {menus.reduce((n, m) => n + m.dishes.length, 0)} platos en total
@@ -410,8 +475,18 @@ export default function MenuManager() {
           disabled={!activeMenu}
           className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 4.5v15m7.5-7.5h-15"
+            />
           </svg>
           Nuevo plato
         </button>
@@ -423,7 +498,6 @@ export default function MenuManager() {
         </div>
       ) : (
         <div className="flex gap-6">
-
           {/* ── Left: menu list + new menu ── */}
           <div className="w-52 shrink-0 space-y-2">
             <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest px-1 mb-3">
@@ -455,7 +529,8 @@ export default function MenuManager() {
                   >
                     <span className="truncate block pr-10">{menu.name}</span>
                     <span className="text-[10px] text-zinc-600 font-normal">
-                      {menu.dishes.length} plato{menu.dishes.length !== 1 ? "s" : ""}
+                      {menu.dishes.length} plato
+                      {menu.dishes.length !== 1 ? "s" : ""}
                     </span>
                   </button>
                 )}
@@ -471,8 +546,18 @@ export default function MenuManager() {
                       className="p-1 text-zinc-600 hover:text-zinc-300 rounded transition-colors"
                       title="Renombrar"
                     >
-                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                      <svg
+                        className="w-3 h-3"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"
+                        />
                       </svg>
                     </button>
                     <button
@@ -480,8 +565,18 @@ export default function MenuManager() {
                       className="p-1 text-zinc-600 hover:text-red-400 rounded transition-colors"
                       title="Eliminar"
                     >
-                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                      <svg
+                        className="w-3 h-3"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+                        />
                       </svg>
                     </button>
                   </div>
@@ -508,8 +603,18 @@ export default function MenuManager() {
                 {creatingMenu ? (
                   <Spinner className="w-3 h-3" />
                 ) : (
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  <svg
+                    className="w-3 h-3"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M12 4.5v15m7.5-7.5h-15"
+                    />
                   </svg>
                 )}
               </button>
@@ -529,9 +634,16 @@ export default function MenuManager() {
                   <div className="relative flex-1 min-w-48">
                     <svg
                       className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500"
-                      fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
                     >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+                      />
                     </svg>
                     <input
                       type="text"
@@ -581,7 +693,14 @@ export default function MenuManager() {
                     </colgroup>
                     <thead>
                       <tr className="border-b border-zinc-800 text-left">
-                        {["Nombre", "Descripción", "Categoría", "Precio", "Alérgenos", ""].map((h) => (
+                        {[
+                          "Nombre",
+                          "Descripción",
+                          "Categoría",
+                          "Precio",
+                          "Alérgenos",
+                          "",
+                        ].map((h) => (
                           <th
                             key={h}
                             className="px-4 py-3.5 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider"
@@ -594,14 +713,23 @@ export default function MenuManager() {
                     <tbody className="divide-y divide-zinc-800">
                       {filteredDishes.length > 0 ? (
                         filteredDishes.map((dish) => (
-                          <tr key={dish.id} className="hover:bg-zinc-800/50 transition-colors">
+                          <tr
+                            key={dish.id}
+                            className="hover:bg-zinc-800/50 transition-colors"
+                          >
                             <td className="px-4 py-3.5">
-                              <span className="block font-medium text-zinc-200 truncate" title={dish.name}>
+                              <span
+                                className="block font-medium text-zinc-200 truncate"
+                                title={dish.name}
+                              >
                                 {dish.name}
                               </span>
                             </td>
                             <td className="px-4 py-3.5">
-                              <span className="block text-xs text-zinc-400 truncate" title={dish.description}>
+                              <span
+                                className="block text-xs text-zinc-400 truncate"
+                                title={dish.description}
+                              >
                                 {dish.description || "—"}
                               </span>
                             </td>
@@ -609,10 +737,12 @@ export default function MenuManager() {
                               {dish.category ? (
                                 <span
                                   className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap ${
-                                    CATEGORY_META[dish.category]?.style ?? defaultBadge
+                                    CATEGORY_META[dish.category]?.style ??
+                                    defaultBadge
                                   }`}
                                 >
-                                  {CATEGORY_META[dish.category]?.label ?? dish.category}
+                                  {CATEGORY_META[dish.category]?.label ??
+                                    dish.category}
                                 </span>
                               ) : (
                                 <span className="text-zinc-600 text-xs">—</span>
@@ -648,12 +778,24 @@ export default function MenuManager() {
                             <td className="px-4 py-3.5">
                               <div className="flex items-center gap-1">
                                 <button
-                                  onClick={() => setDishModal({ open: true, dish })}
+                                  onClick={() =>
+                                    setDishModal({ open: true, dish })
+                                  }
                                   className="p-1.5 text-zinc-500 hover:text-indigo-400 hover:bg-indigo-400/10 rounded-md transition-colors"
                                   title="Editar"
                                 >
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                                  <svg
+                                    className="w-3.5 h-3.5"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth={2}
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"
+                                    />
                                   </svg>
                                 </button>
                                 <button
@@ -661,8 +803,18 @@ export default function MenuManager() {
                                   className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
                                   title="Eliminar"
                                 >
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                  <svg
+                                    className="w-3.5 h-3.5"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth={2}
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+                                    />
                                   </svg>
                                 </button>
                               </div>
@@ -671,7 +823,10 @@ export default function MenuManager() {
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={6} className="px-5 py-12 text-center text-zinc-500 text-sm">
+                          <td
+                            colSpan={6}
+                            className="px-5 py-12 text-center text-zinc-500 text-sm"
+                          >
                             {search || categoryFilter !== "Todos"
                               ? "No se encontraron platos con ese filtro."
                               : "Esta carta no tiene platos. Añade el primero."}
@@ -683,10 +838,12 @@ export default function MenuManager() {
                 </div>
 
                 <p className="text-xs text-zinc-600 mt-3">
-                  {filteredDishes.length} resultado{filteredDishes.length !== 1 ? "s" : ""}
+                  {filteredDishes.length} resultado
+                  {filteredDishes.length !== 1 ? "s" : ""}
                   {categoryFilter !== "Todos" && (
                     <span className="ml-2 text-indigo-500/60">
-                      · filtrado por {CATEGORY_META[categoryFilter as DishCategory]?.label}
+                      · filtrado por{" "}
+                      {CATEGORY_META[categoryFilter as DishCategory]?.label}
                     </span>
                   )}
                 </p>
@@ -717,11 +874,15 @@ export default function MenuManager() {
             className="relative bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-sm p-6 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-base font-semibold text-zinc-100 mb-2">¿Eliminar plato?</h3>
+            <h3 className="text-base font-semibold text-zinc-100 mb-2">
+              ¿Eliminar plato?
+            </h3>
             <p className="text-sm text-zinc-500 mb-6">
               Se eliminará{" "}
-              <span className="text-zinc-300 font-medium">{deleteDishConfirm.name}</span>. Esta
-              acción no se puede deshacer.
+              <span className="text-zinc-300 font-medium">
+                {deleteDishConfirm.name}
+              </span>
+              . Esta acción no se puede deshacer.
             </p>
             <div className="flex justify-end gap-3">
               <button
@@ -754,11 +915,15 @@ export default function MenuManager() {
             className="relative bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-sm p-6 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-base font-semibold text-zinc-100 mb-2">¿Eliminar carta?</h3>
+            <h3 className="text-base font-semibold text-zinc-100 mb-2">
+              ¿Eliminar carta?
+            </h3>
             <p className="text-sm text-zinc-500 mb-6">
               Se eliminará{" "}
-              <span className="text-zinc-300 font-medium">{deleteMenuConfirm.name}</span> y todos
-              sus platos. Esta acción no se puede deshacer.
+              <span className="text-zinc-300 font-medium">
+                {deleteMenuConfirm.name}
+              </span>{" "}
+              y todos sus platos. Esta acción no se puede deshacer.
             </p>
             <div className="flex justify-end gap-3">
               <button

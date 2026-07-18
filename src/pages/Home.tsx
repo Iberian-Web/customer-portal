@@ -11,8 +11,9 @@ export default function Home() {
           Selecciona un servicio desde la barra lateral
         </h1>
         <p className="text-sm leading-6 text-zinc-400 mb-8">
-          Aquí verás tus aplicaciones activas y accederás a tus módulos disponibles.
-          Si no ves nada todavía, revisa tu acceso o actualiza la página.
+          Aquí verás tus aplicaciones activas y accederás a tus módulos
+          disponibles. Si no ves nada todavía, revisa tu acceso o actualiza la
+          página.
         </p>
         <Link
           to="/"

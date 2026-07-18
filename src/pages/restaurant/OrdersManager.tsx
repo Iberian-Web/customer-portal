@@ -2,7 +2,8 @@ import { useState, useMemo } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type OrderStatus = "PENDING" | "IN_PROGRESS" | "READY" | "DELIVERED" | "CANCELLED";
+type OrderStatus =
+  "PENDING" | "IN_PROGRESS" | "READY" | "DELIVERED" | "CANCELLED";
 
 interface OrderItem {
   name: string;
@@ -125,7 +126,9 @@ const ALL_STATUSES = Object.keys(statusLabel) as OrderStatus[];
 export default function OrdersManager() {
   const [orders] = useState<Order[]>(mockOrders);
   const [search, setSearch] = useState("");
-  const [activeStatus, setActiveStatus] = useState<OrderStatus | "Todos">("Todos");
+  const [activeStatus, setActiveStatus] = useState<OrderStatus | "Todos">(
+    "Todos",
+  );
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const filtered = useMemo(() => {
@@ -136,12 +139,15 @@ export default function OrdersManager() {
         o.waiter.toLowerCase().includes(q) ||
         o.items.some((i) => i.name.toLowerCase().includes(q)) ||
         String(o.id).includes(q);
-      const matchesStatus = activeStatus === "Todos" || o.status === activeStatus;
+      const matchesStatus =
+        activeStatus === "Todos" || o.status === activeStatus;
       return matchesSearch && matchesStatus;
     });
   }, [orders, search, activeStatus]);
 
-  const activeOrders = orders.filter((o) => ["PENDING", "IN_PROGRESS", "READY"].includes(o.status));
+  const activeOrders = orders.filter((o) =>
+    ["PENDING", "IN_PROGRESS", "READY"].includes(o.status),
+  );
   const totalRevenue = orders
     .filter((o) => o.status === "DELIVERED")
     .reduce((sum, o) => sum + o.total, 0);
@@ -151,14 +157,26 @@ export default function OrdersManager() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-xl font-semibold text-zinc-100">Gestión de pedidos</h1>
+          <h1 className="text-xl font-semibold text-zinc-100">
+            Gestión de pedidos
+          </h1>
           <p className="text-sm text-zinc-500 mt-0.5">
             {activeOrders.length} pedidos activos · hoy
           </p>
         </div>
         <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 4.5v15m7.5-7.5h-15"
+            />
           </svg>
           Nuevo pedido
         </button>
@@ -188,9 +206,14 @@ export default function OrdersManager() {
             color: "text-indigo-400",
           },
         ].map(({ label, value, color }) => (
-          <div key={label} className="bg-zinc-900 border border-zinc-800 rounded-xl px-5 py-4">
+          <div
+            key={label}
+            className="bg-zinc-900 border border-zinc-800 rounded-xl px-5 py-4"
+          >
             <p className="text-xs font-medium text-zinc-500 mb-1">{label}</p>
-            <p className={`text-2xl font-semibold ${color} tabular-nums`}>{value}</p>
+            <p className={`text-2xl font-semibold ${color} tabular-nums`}>
+              {value}
+            </p>
           </div>
         ))}
       </div>
@@ -205,7 +228,11 @@ export default function OrdersManager() {
             stroke="currentColor"
             strokeWidth={2}
           >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+            />
           </svg>
           <input
             type="text"
@@ -249,8 +276,19 @@ export default function OrdersManager() {
           </colgroup>
           <thead>
             <tr className="border-b border-zinc-800 text-left">
-              {["#", "Mesa", "Camarero", "Platos", "Total", "Estado", "Hora"].map((h) => (
-                <th key={h} className="px-5 py-3.5 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">
+              {[
+                "#",
+                "Mesa",
+                "Camarero",
+                "Platos",
+                "Total",
+                "Estado",
+                "Hora",
+              ].map((h) => (
+                <th
+                  key={h}
+                  className="px-5 py-3.5 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider"
+                >
                   {h}
                 </th>
               ))}
@@ -263,20 +301,29 @@ export default function OrdersManager() {
                 <>
                   <tr
                     key={order.id}
-                    onClick={() => setExpandedId(expandedId === order.id ? null : order.id)}
+                    onClick={() =>
+                      setExpandedId(expandedId === order.id ? null : order.id)
+                    }
                     className="hover:bg-zinc-800/50 transition-colors cursor-pointer"
                   >
                     {/* ID */}
                     <td className="px-5 py-3.5">
-                      <span className="text-zinc-500 text-xs font-mono">#{order.id}</span>
+                      <span className="text-zinc-500 text-xs font-mono">
+                        #{order.id}
+                      </span>
                     </td>
                     {/* Table */}
                     <td className="px-5 py-3.5">
-                      <span className="font-medium text-zinc-200">Mesa {order.tableNumber}</span>
+                      <span className="font-medium text-zinc-200">
+                        Mesa {order.tableNumber}
+                      </span>
                     </td>
                     {/* Waiter */}
                     <td className="px-5 py-3.5">
-                      <span className="text-zinc-400 truncate block" title={order.waiter}>
+                      <span
+                        className="text-zinc-400 truncate block"
+                        title={order.waiter}
+                      >
                         {order.waiter}
                       </span>
                     </td>
@@ -315,12 +362,21 @@ export default function OrdersManager() {
                     </td>
                     {/* Time */}
                     <td className="px-5 py-3.5">
-                      <span className="text-zinc-500 text-xs tabular-nums">{order.createdAt}</span>
+                      <span className="text-zinc-500 text-xs tabular-nums">
+                        {order.createdAt}
+                      </span>
                     </td>
                     {/* Expand icon */}
-                    <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
+                    <td
+                      className="px-5 py-3.5"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <button
-                        onClick={() => setExpandedId(expandedId === order.id ? null : order.id)}
+                        onClick={() =>
+                          setExpandedId(
+                            expandedId === order.id ? null : order.id,
+                          )
+                        }
                         className="p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700 rounded-md transition-colors"
                       >
                         <svg
@@ -330,7 +386,11 @@ export default function OrdersManager() {
                           stroke="currentColor"
                           strokeWidth={2}
                         >
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M19.5 8.25l-7.5 7.5-7.5-7.5"
+                          />
                         </svg>
                       </button>
                     </td>
@@ -346,9 +406,14 @@ export default function OrdersManager() {
                             </p>
                             <div className="space-y-1.5">
                               {order.items.map((item) => (
-                                <div key={item.name} className="flex items-center justify-between text-sm">
+                                <div
+                                  key={item.name}
+                                  className="flex items-center justify-between text-sm"
+                                >
                                   <span className="text-zinc-300">
-                                    <span className="text-zinc-500 mr-2">{item.qty}×</span>
+                                    <span className="text-zinc-500 mr-2">
+                                      {item.qty}×
+                                    </span>
                                     {item.name}
                                   </span>
                                   <span className="text-zinc-400 tabular-nums">
@@ -358,7 +423,9 @@ export default function OrdersManager() {
                               ))}
                               <div className="border-t border-zinc-800 pt-1.5 mt-1.5 flex items-center justify-between font-medium text-sm">
                                 <span className="text-zinc-300">Total</span>
-                                <span className="text-zinc-100 tabular-nums">{order.total.toFixed(2)} €</span>
+                                <span className="text-zinc-100 tabular-nums">
+                                  {order.total.toFixed(2)} €
+                                </span>
                               </div>
                             </div>
                           </div>
@@ -376,16 +443,18 @@ export default function OrdersManager() {
                             <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider mb-1">
                               Acciones
                             </p>
-                            {order.status !== "DELIVERED" && order.status !== "CANCELLED" && (
-                              <button className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-medium rounded-lg border border-emerald-500/20 transition-colors">
-                                Marcar como listo
-                              </button>
-                            )}
-                            {order.status !== "DELIVERED" && order.status !== "CANCELLED" && (
-                              <button className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-medium rounded-lg border border-red-500/20 transition-colors">
-                                Cancelar pedido
-                              </button>
-                            )}
+                            {order.status !== "DELIVERED" &&
+                              order.status !== "CANCELLED" && (
+                                <button className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-medium rounded-lg border border-emerald-500/20 transition-colors">
+                                  Marcar como listo
+                                </button>
+                              )}
+                            {order.status !== "DELIVERED" &&
+                              order.status !== "CANCELLED" && (
+                                <button className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-medium rounded-lg border border-red-500/20 transition-colors">
+                                  Cancelar pedido
+                                </button>
+                              )}
                             <button className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium rounded-lg border border-zinc-700 transition-colors">
                               Imprimir ticket
                             </button>
@@ -398,8 +467,13 @@ export default function OrdersManager() {
               ))
             ) : (
               <tr>
-                <td colSpan={8} className="px-5 py-12 text-center text-zinc-500 text-sm">
-                  {search ? `No se encontraron pedidos para «${search}».` : "No hay pedidos aún."}
+                <td
+                  colSpan={8}
+                  className="px-5 py-12 text-center text-zinc-500 text-sm"
+                >
+                  {search
+                    ? `No se encontraron pedidos para «${search}».`
+                    : "No hay pedidos aún."}
                 </td>
               </tr>
             )}

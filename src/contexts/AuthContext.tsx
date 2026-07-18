@@ -34,7 +34,9 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [status, setStatus] = useState<AuthStatus>("loading");
@@ -57,16 +59,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setStatus("authenticated");
   }, []);
 
-  const authFetch = useCallback(async (path: string, init?: RequestInit): Promise<Response> => {
-    return fetch(`${BASE}${path}`, {
-      ...init,
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        ...(init?.headers ?? {}),
-      },
-    });
-  }, []);
+  const authFetch = useCallback(
+    async (path: string, init?: RequestInit): Promise<Response> => {
+      return fetch(`${BASE}${path}`, {
+        ...init,
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          ...(init?.headers ?? {}),
+        },
+      });
+    },
+    [],
+  );
 
   // ── Bootstrap ──
 

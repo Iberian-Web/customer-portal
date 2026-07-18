@@ -1,24 +1,29 @@
 // customer-portal/src/components/ReservationsManager.tsx
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import { reservationsApi, type Reservation, type ReservationStatus, type ReservationCreate } from "../../api";
+import {
+  reservationsApi,
+  type Reservation,
+  type ReservationStatus,
+  type ReservationCreate,
+} from "../../api";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 const STATUS_LABEL: Record<ReservationStatus, string> = {
-  PENDING:   "Pendiente",
+  PENDING: "Pendiente",
   CONFIRMED: "Confirmada",
   CANCELLED: "Cancelada",
   COMPLETED: "Completada",
-  NO_SHOW:   "No presentado",
+  NO_SHOW: "No presentado",
 };
 
 const STATUS_STYLES: Record<ReservationStatus, string> = {
-  PENDING:   "bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20",
+  PENDING: "bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20",
   CONFIRMED: "bg-indigo-500/10 text-indigo-400 ring-1 ring-indigo-500/20",
   CANCELLED: "bg-zinc-700/40 text-zinc-500 ring-1 ring-zinc-600/30",
   COMPLETED: "bg-zinc-700/40 text-zinc-400 ring-1 ring-zinc-600/30",
-  NO_SHOW:   "bg-red-500/10 text-red-400 ring-1 ring-red-500/20",
+  NO_SHOW: "bg-red-500/10 text-red-400 ring-1 ring-red-500/20",
 };
 
 const ALL_STATUSES = Object.keys(STATUS_LABEL) as ReservationStatus[];
@@ -27,7 +32,11 @@ const ALL_STATUSES = Object.keys(STATUS_LABEL) as ReservationStatus[];
 
 function toLocalDateString(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return d.toLocaleDateString("es-ES", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 }
 
 function toLocalTimeString(iso: string): string {
@@ -95,11 +104,20 @@ interface ModalProps {
   onClose: () => void;
 }
 
-function ReservationModal({ mode, initial, saving, error, onSubmit, onClose }: ModalProps) {
+function ReservationModal({
+  mode,
+  initial,
+  saving,
+  error,
+  onSubmit,
+  onClose,
+}: ModalProps) {
   const [form, setForm] = useState<FormFields>(initial);
 
-  const set = (key: keyof FormFields) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setForm((f) => ({ ...f, [key]: e.target.value }));
+  const set =
+    (key: keyof FormFields) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setForm((f) => ({ ...f, [key]: e.target.value }));
 
   const handleSubmit = () => {
     onSubmit(form);
@@ -117,8 +135,18 @@ function ReservationModal({ mode, initial, saving, error, onSubmit, onClose }: M
             onClick={onClose}
             className="p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded-md transition-colors"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
@@ -162,7 +190,8 @@ function ReservationModal({ mode, initial, saving, error, onSubmit, onClose }: M
           {/* Email */}
           <div>
             <label className="block text-xs font-medium text-zinc-400 mb-1.5">
-              Email <span className="text-zinc-600 font-normal">(opcional)</span>
+              Email{" "}
+              <span className="text-zinc-600 font-normal">(opcional)</span>
             </label>
             <input
               type="email"
@@ -218,7 +247,8 @@ function ReservationModal({ mode, initial, saving, error, onSubmit, onClose }: M
           {/* Notes */}
           <div>
             <label className="block text-xs font-medium text-zinc-400 mb-1.5">
-              Notas <span className="text-zinc-600 font-normal">(opcional)</span>
+              Notas{" "}
+              <span className="text-zinc-600 font-normal">(opcional)</span>
             </label>
             <textarea
               value={form.notes}
@@ -243,7 +273,11 @@ function ReservationModal({ mode, initial, saving, error, onSubmit, onClose }: M
             disabled={saving}
             className="px-4 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
           >
-            {saving ? "Guardando…" : mode === "create" ? "Crear reserva" : "Guardar cambios"}
+            {saving
+              ? "Guardando…"
+              : mode === "create"
+                ? "Crear reserva"
+                : "Guardar cambios"}
           </button>
         </div>
       </div>
@@ -263,8 +297,12 @@ export default function ReservationsManager() {
 
   // UI state
   const [search, setSearch] = useState("");
-  const [activeStatus, setActiveStatus] = useState<ReservationStatus | "Todos">("Todos");
-  const [dateFilter, setDateFilter] = useState<"hoy" | "mañana" | "todos">("hoy");
+  const [activeStatus, setActiveStatus] = useState<ReservationStatus | "Todos">(
+    "Todos",
+  );
+  const [dateFilter, setDateFilter] = useState<"hoy" | "mañana" | "todos">(
+    "hoy",
+  );
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
   // Modal state
@@ -322,7 +360,8 @@ export default function ReservationsManager() {
         r.customerPhone.includes(q) ||
         r.customerEmail.toLowerCase().includes(q);
 
-      const matchesStatus = activeStatus === "Todos" || r.status === activeStatus;
+      const matchesStatus =
+        activeStatus === "Todos" || r.status === activeStatus;
 
       const matchesDate =
         dateFilter === "todos" ||
@@ -340,11 +379,16 @@ export default function ReservationsManager() {
 
   // ── Status update ─────────────────────────────────────────────────────────
 
-  const handleStatusChange = async (r: Reservation, newStatus: ReservationStatus) => {
+  const handleStatusChange = async (
+    r: Reservation,
+    newStatus: ReservationStatus,
+  ) => {
     setUpdatingId(r.id);
     try {
       const updated = await reservationsApi.updateStatus(r.id, newStatus);
-      setReservations((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+      setReservations((prev) =>
+        prev.map((x) => (x.id === updated.id ? updated : x)),
+      );
     } catch (e: any) {
       alert(e.message ?? "Error al actualizar estado");
     } finally {
@@ -383,7 +427,13 @@ export default function ReservationsManager() {
   // ── Submit ────────────────────────────────────────────────────────────────
 
   const handleModalSubmit = async (form: FormFields) => {
-    if (!form.customerName || !form.customerPhone || !form.date || !form.time || !form.guests) {
+    if (
+      !form.customerName ||
+      !form.customerPhone ||
+      !form.date ||
+      !form.time ||
+      !form.guests
+    ) {
       setModalError("Por favor completa los campos obligatorios.");
       return;
     }
@@ -405,7 +455,9 @@ export default function ReservationsManager() {
         setReservations((prev) => [created, ...prev]);
       } else if (editingId !== null) {
         const updated = await reservationsApi.update(editingId, payload);
-        setReservations((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+        setReservations((prev) =>
+          prev.map((x) => (x.id === updated.id ? updated : x)),
+        );
       }
       setModalOpen(false);
     } catch (e: any) {
@@ -445,7 +497,6 @@ export default function ReservationsManager() {
 
   return (
     <div className="px-8 py-8 max-w-6xl mx-auto w-full">
-
       {/* Modal */}
       {modalOpen && (
         <ReservationModal
@@ -471,8 +522,18 @@ export default function ReservationsManager() {
           onClick={openCreate}
           className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors"
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 4.5v15m7.5-7.5h-15"
+            />
           </svg>
           Nueva reserva
         </button>
@@ -483,17 +544,20 @@ export default function ReservationsManager() {
         {[
           {
             label: "Confirmadas hoy",
-            value: todayReservations.filter((r) => r.status === "CONFIRMED").length,
+            value: todayReservations.filter((r) => r.status === "CONFIRMED")
+              .length,
             color: "text-indigo-400",
           },
           {
             label: "Pendientes hoy",
-            value: todayReservations.filter((r) => r.status === "PENDING").length,
+            value: todayReservations.filter((r) => r.status === "PENDING")
+              .length,
             color: "text-amber-400",
           },
           {
             label: "No presentados",
-            value: todayReservations.filter((r) => r.status === "NO_SHOW").length,
+            value: todayReservations.filter((r) => r.status === "NO_SHOW")
+              .length,
             color: "text-red-400",
           },
           {
@@ -504,10 +568,17 @@ export default function ReservationsManager() {
             color: "text-zinc-200",
           },
         ].map(({ label, value, color }) => (
-          <div key={label} className="bg-zinc-900 border border-zinc-800 rounded-xl px-5 py-4">
+          <div
+            key={label}
+            className="bg-zinc-900 border border-zinc-800 rounded-xl px-5 py-4"
+          >
             <p className="text-xs font-medium text-zinc-500 mb-1">{label}</p>
             <p className={`text-2xl font-semibold ${color} tabular-nums`}>
-              {loading ? <span className="w-8 h-7 bg-zinc-800 rounded animate-pulse inline-block" /> : value}
+              {loading ? (
+                <span className="w-8 h-7 bg-zinc-800 rounded animate-pulse inline-block" />
+              ) : (
+                value
+              )}
             </p>
           </div>
         ))}
@@ -518,9 +589,16 @@ export default function ReservationsManager() {
         <div className="relative flex-1">
           <svg
             className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500"
-            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
           >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+            />
           </svg>
           <input
             type="text"
@@ -579,7 +657,14 @@ export default function ReservationsManager() {
           </colgroup>
           <thead>
             <tr className="border-b border-zinc-800 text-left">
-              {["Nombre", "Contacto", "Fecha", "Hora", "Comensales", "Estado"].map((h) => (
+              {[
+                "Nombre",
+                "Contacto",
+                "Fecha",
+                "Hora",
+                "Comensales",
+                "Estado",
+              ].map((h) => (
                 <th
                   key={h}
                   className="px-5 py-3.5 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider"
@@ -606,23 +691,34 @@ export default function ReservationsManager() {
                 <>
                   <tr
                     key={r.id}
-                    onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
+                    onClick={() =>
+                      setExpandedId(expandedId === r.id ? null : r.id)
+                    }
                     className="hover:bg-zinc-800/50 transition-colors cursor-pointer"
                   >
                     {/* Name */}
                     <td className="px-5 py-3.5">
-                      <span className="block font-medium text-zinc-200 truncate" title={r.customerName}>
+                      <span
+                        className="block font-medium text-zinc-200 truncate"
+                        title={r.customerName}
+                      >
                         {r.customerName}
                       </span>
                     </td>
 
                     {/* Contact */}
                     <td className="px-5 py-3.5">
-                      <span className="block text-zinc-400 text-xs truncate" title={r.customerPhone}>
+                      <span
+                        className="block text-zinc-400 text-xs truncate"
+                        title={r.customerPhone}
+                      >
                         {r.customerPhone}
                       </span>
                       {r.customerEmail && (
-                        <span className="block text-zinc-600 text-[10px] truncate" title={r.customerEmail}>
+                        <span
+                          className="block text-zinc-600 text-[10px] truncate"
+                          title={r.customerEmail}
+                        >
                           {r.customerEmail}
                         </span>
                       )}
@@ -632,7 +728,9 @@ export default function ReservationsManager() {
                     <td className="px-5 py-3.5">
                       <span className="text-zinc-400 text-xs tabular-nums whitespace-nowrap">
                         {isSameDay(r.reservationDate, today) ? (
-                          <span className="text-indigo-400 font-medium">Hoy</span>
+                          <span className="text-indigo-400 font-medium">
+                            Hoy
+                          </span>
                         ) : isSameDay(r.reservationDate, tomorrow) ? (
                           <span className="text-zinc-300">Mañana</span>
                         ) : (
@@ -653,11 +751,20 @@ export default function ReservationsManager() {
                       <div className="flex items-center gap-1.5">
                         <svg
                           className="w-3.5 h-3.5 text-zinc-500 shrink-0"
-                          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
                         >
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"
+                          />
                         </svg>
-                        <span className="text-zinc-300 font-medium">{r.guests}</span>
+                        <span className="text-zinc-300 font-medium">
+                          {r.guests}
+                        </span>
                       </div>
                     </td>
 
@@ -671,16 +778,28 @@ export default function ReservationsManager() {
                     </td>
 
                     {/* Expand chevron */}
-                    <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
+                    <td
+                      className="px-5 py-3.5"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <button
-                        onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
+                        onClick={() =>
+                          setExpandedId(expandedId === r.id ? null : r.id)
+                        }
                         className="p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700 rounded-md transition-colors"
                       >
                         <svg
                           className={`w-3.5 h-3.5 transition-transform ${expandedId === r.id ? "rotate-180" : ""}`}
-                          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
                         >
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M19.5 8.25l-7.5 7.5-7.5-7.5"
+                          />
                         </svg>
                       </button>
                     </td>
@@ -691,16 +810,21 @@ export default function ReservationsManager() {
                     <tr key={`${r.id}-detail`} className="bg-zinc-950/50">
                       <td colSpan={7} className="px-5 py-4">
                         <div className="flex gap-8 flex-wrap">
-
                           {/* Contact */}
                           <div className="min-w-35">
                             <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider mb-3">
                               Contacto
                             </p>
-                            <p className="text-sm text-zinc-300">{r.customerName}</p>
-                            <p className="text-xs text-zinc-500 mt-1">{r.customerPhone}</p>
+                            <p className="text-sm text-zinc-300">
+                              {r.customerName}
+                            </p>
+                            <p className="text-xs text-zinc-500 mt-1">
+                              {r.customerPhone}
+                            </p>
                             {r.customerEmail && (
-                              <p className="text-xs text-zinc-500">{r.customerEmail}</p>
+                              <p className="text-xs text-zinc-500">
+                                {r.customerEmail}
+                              </p>
                             )}
                           </div>
 
@@ -711,20 +835,34 @@ export default function ReservationsManager() {
                             </p>
                             <div className="space-y-1 text-sm">
                               <div className="flex items-center gap-4">
-                                <span className="text-zinc-500 w-24">Fecha</span>
-                                <span className="text-zinc-300">{toLocalDateString(r.reservationDate)}</span>
+                                <span className="text-zinc-500 w-24">
+                                  Fecha
+                                </span>
+                                <span className="text-zinc-300">
+                                  {toLocalDateString(r.reservationDate)}
+                                </span>
                               </div>
                               <div className="flex items-center gap-4">
                                 <span className="text-zinc-500 w-24">Hora</span>
-                                <span className="text-zinc-300">{toLocalTimeString(r.reservationDate)}</span>
+                                <span className="text-zinc-300">
+                                  {toLocalTimeString(r.reservationDate)}
+                                </span>
                               </div>
                               <div className="flex items-center gap-4">
-                                <span className="text-zinc-500 w-24">Comensales</span>
-                                <span className="text-zinc-300">{r.guests}</span>
+                                <span className="text-zinc-500 w-24">
+                                  Comensales
+                                </span>
+                                <span className="text-zinc-300">
+                                  {r.guests}
+                                </span>
                               </div>
                               <div className="flex items-center gap-4">
-                                <span className="text-zinc-500 w-24">Creada el</span>
-                                <span className="text-zinc-500 text-xs">{toLocalDateString(r.createdAt)}</span>
+                                <span className="text-zinc-500 w-24">
+                                  Creada el
+                                </span>
+                                <span className="text-zinc-500 text-xs">
+                                  {toLocalDateString(r.createdAt)}
+                                </span>
                               </div>
                             </div>
                           </div>
@@ -742,7 +880,10 @@ export default function ReservationsManager() {
                           )}
 
                           {/* Actions */}
-                          <div className="ml-auto flex flex-col gap-2 min-w-35" onClick={(e) => e.stopPropagation()}>
+                          <div
+                            className="ml-auto flex flex-col gap-2 min-w-35"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider mb-1">
                               Acciones
                             </p>
@@ -751,7 +892,9 @@ export default function ReservationsManager() {
                             {r.status === "PENDING" && (
                               <button
                                 disabled={updatingId === r.id}
-                                onClick={() => handleStatusChange(r, "CONFIRMED")}
+                                onClick={() =>
+                                  handleStatusChange(r, "CONFIRMED")
+                                }
                                 className="px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-xs font-medium rounded-lg border border-indigo-500/20 transition-colors whitespace-nowrap disabled:opacity-50"
                               >
                                 Confirmar reserva
@@ -762,7 +905,9 @@ export default function ReservationsManager() {
                             {r.status === "CONFIRMED" && (
                               <button
                                 disabled={updatingId === r.id}
-                                onClick={() => handleStatusChange(r, "COMPLETED")}
+                                onClick={() =>
+                                  handleStatusChange(r, "COMPLETED")
+                                }
                                 className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-medium rounded-lg border border-emerald-500/20 transition-colors whitespace-nowrap disabled:opacity-50"
                               >
                                 Marcar completada
@@ -781,10 +926,14 @@ export default function ReservationsManager() {
                             )}
 
                             {/* Cancel */}
-                            {!["CANCELLED", "COMPLETED", "NO_SHOW"].includes(r.status) && (
+                            {!["CANCELLED", "COMPLETED", "NO_SHOW"].includes(
+                              r.status,
+                            ) && (
                               <button
                                 disabled={updatingId === r.id}
-                                onClick={() => handleStatusChange(r, "CANCELLED")}
+                                onClick={() =>
+                                  handleStatusChange(r, "CANCELLED")
+                                }
                                 className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-medium rounded-lg border border-red-500/20 transition-colors whitespace-nowrap disabled:opacity-50"
                               >
                                 Cancelar reserva
@@ -815,7 +964,10 @@ export default function ReservationsManager() {
               ))
             ) : (
               <tr>
-                <td colSpan={7} className="px-5 py-12 text-center text-zinc-500 text-sm">
+                <td
+                  colSpan={7}
+                  className="px-5 py-12 text-center text-zinc-500 text-sm"
+                >
                   {search
                     ? `No se encontraron reservas para «${search}».`
                     : "No hay reservas para este período."}
