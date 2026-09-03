@@ -53,6 +53,10 @@ function isSameDay(iso: string, ref: Date): boolean {
   );
 }
 
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
 /** Convert a local date string (YYYY-MM-DD) + time string (HH:MM) to ISO 8601 */
 function toIso(date: string, time: string): string {
   return new Date(`${date}T${time}:00`).toISOString();
@@ -324,15 +328,18 @@ export default function ReservationsManager() {
     try {
       const data = await reservationsApi.list(id);
       setReservations(data);
-    } catch (e: any) {
-      setError(e.message ?? "Error al cargar reservas");
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, "Error al cargar reservas"));
     } finally {
       setLoading(false);
     }
   }, [id]);
 
   useEffect(() => {
-    load();
+    const run = async () => {
+      await load();
+    };
+    void run();
   }, [load]);
 
   // ── Date helpers ──────────────────────────────────────────────────────────
@@ -389,8 +396,8 @@ export default function ReservationsManager() {
       setReservations((prev) =>
         prev.map((x) => (x.id === updated.id ? updated : x)),
       );
-    } catch (e: any) {
-      alert(e.message ?? "Error al actualizar estado");
+    } catch (e: unknown) {
+      alert(getErrorMessage(e, "Error al actualizar estado"));
     } finally {
       setUpdatingId(null);
     }
@@ -460,8 +467,8 @@ export default function ReservationsManager() {
         );
       }
       setModalOpen(false);
-    } catch (e: any) {
-      setModalError(e.message ?? "Error al guardar la reserva");
+    } catch (e: unknown) {
+      setModalError(getErrorMessage(e, "Error al guardar la reserva"));
     } finally {
       setSaving(false);
     }
@@ -475,8 +482,8 @@ export default function ReservationsManager() {
       await reservationsApi.remove(r.id);
       setReservations((prev) => prev.filter((x) => x.id !== r.id));
       if (expandedId === r.id) setExpandedId(null);
-    } catch (e: any) {
-      alert(e.message ?? "Error al eliminar");
+    } catch (e: unknown) {
+      alert(getErrorMessage(e, "Error al eliminar"));
     }
   };
 

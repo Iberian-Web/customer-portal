@@ -8,7 +8,7 @@ import MenuManager from "./pages/restaurant/MenuManager";
 import OrdersManager from "./pages/restaurant/OrdersManager";
 import ReservationsManager from "./pages/restaurant/ReservationsManager";
 // import PropertiesManager from "./pages/realestate/PropertiesManager";
-import { useAuth } from "./contexts/AuthContext";
+import { useAuth } from "./auth/useAuth";
 
 function LoadingScreen() {
   return (

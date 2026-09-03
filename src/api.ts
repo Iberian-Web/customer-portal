@@ -1,7 +1,7 @@
 // customer-portal/src/api.ts
 //
 // Typed fetch utility for the Customer Portal.
-// All requests automatically inject the stored Bearer token.
+// All requests automatically include the HTTP-only session cookie.
 // The base URL is controlled by VITE_API_URL (empty string in dev so Vite
 // proxies /api → http://localhost:3001).
 

@@ -354,13 +354,13 @@ export default function MenuManager() {
     try {
       const data = await menusApi.list(instId);
       setMenus(data);
-      if (data.length > 0 && activeMenuId === null) {
-        setActiveMenuId(data[0].id);
+      if (data.length > 0) {
+        setActiveMenuId((current) => current ?? data[0].id);
       }
     } finally {
       setLoading(false);
     }
-  }, [instId, activeMenuId]);
+  }, [instId]);
 
   useEffect(() => {
     load();

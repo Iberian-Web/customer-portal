@@ -1,8 +1,8 @@
 // customer-portal/src/components/Sidebar.tsx
 import { NavLink, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
-import { portalApi, type MyAccess, type Instance } from "../api";
-import { useAuth } from "../contexts/AuthContext";
+import { useState } from "react";
+import type { Instance } from "../api";
+import { useAuth } from "../auth/useAuth";
 
 // ─── Service → route/icon registry ───────────────────────────────────────────
 type NavEntry = {
@@ -243,20 +243,10 @@ function SidebarContent({
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 export default function Sidebar() {
-  const { user, logout } = useAuth();
+  const { user, access, isLoading, logout } = useAuth();
   const navigate = useNavigate();
 
-  const [access, setAccess] = useState<MyAccess | null>(null);
-  const [loading, setLoading] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
-
-  useEffect(() => {
-    portalApi
-      .myAccess()
-      .then(setAccess)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
 
   const handleLogout = async () => {
     await logout();
@@ -335,7 +325,7 @@ export default function Sidebar() {
         }`}
       >
         <SidebarContent
-          loading={loading}
+          loading={isLoading}
           sections={sections}
           initials={initials}
           user={user ?? null}
@@ -347,7 +337,7 @@ export default function Sidebar() {
       {/* ── Desktop sidebar (unchanged) ─────────────────────────────────────── */}
       <aside className="hidden md:flex w-56 shrink-0 bg-zinc-900 border-r border-zinc-800 flex-col h-screen sticky top-0">
         <SidebarContent
-          loading={loading}
+          loading={isLoading}
           sections={sections}
           initials={initials}
           user={user ?? null}
