@@ -20,7 +20,7 @@ const STATUS_LABEL: Record<ReservationStatus, string> = {
 
 const STATUS_STYLES: Record<ReservationStatus, string> = {
   PENDING: "bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20",
-  CONFIRMED: "bg-indigo-500/10 text-indigo-400 ring-1 ring-indigo-500/20",
+  CONFIRMED: "bg-teal-500/10 text-teal-400 ring-1 ring-teal-500/20",
   CANCELLED: "bg-zinc-700/40 text-zinc-500 ring-1 ring-zinc-600/30",
   COMPLETED: "bg-zinc-700/40 text-zinc-400 ring-1 ring-zinc-600/30",
   NO_SHOW: "bg-red-500/10 text-red-400 ring-1 ring-red-500/20",
@@ -129,7 +129,7 @@ function ReservationModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md mx-4 shadow-2xl">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-md mx-4 shadow-lg">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-zinc-800">
           <h2 className="text-base font-semibold text-zinc-100">
@@ -173,7 +173,7 @@ function ReservationModal({
               value={form.customerName}
               onChange={set("customerName")}
               placeholder="John Smith"
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-colors"
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/30 transition-colors"
             />
           </div>
 
@@ -187,7 +187,7 @@ function ReservationModal({
               value={form.customerPhone}
               onChange={set("customerPhone")}
               placeholder="+34 666 111 222"
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-colors"
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/30 transition-colors"
             />
           </div>
 
@@ -202,7 +202,7 @@ function ReservationModal({
               value={form.customerEmail}
               onChange={set("customerEmail")}
               placeholder="john@example.com"
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-colors"
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/30 transition-colors"
             />
           </div>
 
@@ -216,7 +216,7 @@ function ReservationModal({
                 type="date"
                 value={form.date}
                 onChange={set("date")}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-colors"
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/30 transition-colors"
               />
             </div>
             <div>
@@ -227,7 +227,7 @@ function ReservationModal({
                 type="time"
                 value={form.time}
                 onChange={set("time")}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-colors"
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/30 transition-colors"
               />
             </div>
           </div>
@@ -244,7 +244,7 @@ function ReservationModal({
               value={form.guests}
               onChange={set("guests")}
               placeholder="2"
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-colors"
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/30 transition-colors"
             />
           </div>
 
@@ -259,7 +259,7 @@ function ReservationModal({
               onChange={set("notes")}
               rows={3}
               placeholder="Outdoor seating preferred…"
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-colors resize-none"
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/30 transition-colors resize-none"
             />
           </div>
         </div>
@@ -275,7 +275,7 @@ function ReservationModal({
           <button
             onClick={handleSubmit}
             disabled={saving}
-            className="px-4 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+            className="px-4 py-2 text-sm font-medium bg-teal-600 hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
           >
             {saving
               ? "Guardando…"
@@ -527,7 +527,7 @@ export default function ReservationsManager() {
         </div>
         <button
           onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white text-sm font-medium rounded-lg transition-colors"
         >
           <svg
             className="w-4 h-4"
@@ -553,7 +553,7 @@ export default function ReservationsManager() {
             label: "Confirmadas hoy",
             value: todayReservations.filter((r) => r.status === "CONFIRMED")
               .length,
-            color: "text-indigo-400",
+            color: "text-teal-400",
           },
           {
             label: "Pendientes hoy",
@@ -612,7 +612,7 @@ export default function ReservationsManager() {
             placeholder="Buscar por nombre, teléfono o email…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-10 pr-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-colors"
+            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-10 pr-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/30 transition-colors"
           />
         </div>
         {/* Date toggle */}
@@ -641,7 +641,7 @@ export default function ReservationsManager() {
             onClick={() => setActiveStatus(s)}
             className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
               activeStatus === s
-                ? "bg-indigo-600 text-white"
+                ? "bg-teal-600 text-white"
                 : "bg-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700"
             }`}
           >
@@ -735,9 +735,7 @@ export default function ReservationsManager() {
                     <td className="px-5 py-3.5">
                       <span className="text-zinc-400 text-xs tabular-nums whitespace-nowrap">
                         {isSameDay(r.reservationDate, today) ? (
-                          <span className="text-indigo-400 font-medium">
-                            Hoy
-                          </span>
+                          <span className="text-teal-400 font-medium">Hoy</span>
                         ) : isSameDay(r.reservationDate, tomorrow) ? (
                           <span className="text-zinc-300">Mañana</span>
                         ) : (
@@ -902,7 +900,7 @@ export default function ReservationsManager() {
                                 onClick={() =>
                                   handleStatusChange(r, "CONFIRMED")
                                 }
-                                className="px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-xs font-medium rounded-lg border border-indigo-500/20 transition-colors whitespace-nowrap disabled:opacity-50"
+                                className="px-3 py-1.5 bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 text-xs font-medium rounded-lg border border-teal-500/20 transition-colors whitespace-nowrap disabled:opacity-50"
                               >
                                 Confirmar reserva
                               </button>
@@ -988,7 +986,7 @@ export default function ReservationsManager() {
       <p className="text-xs text-zinc-600 mt-3">
         {filtered.length} resultado{filtered.length !== 1 ? "s" : ""}
         {activeStatus !== "Todos" && (
-          <span className="ml-2 text-indigo-500/60">
+          <span className="ml-2 text-teal-500/60">
             · filtrado por {STATUS_LABEL[activeStatus as ReservationStatus]}
           </span>
         )}

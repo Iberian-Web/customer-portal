@@ -2,22 +2,21 @@ import { Link } from "react-router-dom";
 
 export default function Home() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen px-6 py-10 text-center">
-      <div className="max-w-xl rounded-3xl border border-zinc-800 bg-zinc-900 p-10 shadow-[0_0_0_1px_rgba(148,163,184,0.08)]">
-        <p className="text-sm font-semibold text-indigo-400 uppercase tracking-[0.3em] mb-3">
-          Bienvenido al portal
+    <div className="flex flex-col items-center justify-center min-h-screen bg-zinc-950 text-center px-6">
+      <div className="max-w-md w-full rounded-2xl border border-zinc-800 bg-zinc-900 p-8">
+        <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-3">
+          Bienvenido/a
         </p>
-        <h1 className="text-3xl font-semibold text-zinc-100 mb-4">
-          Selecciona un servicio desde la barra lateral
+        <h1 className="text-2xl font-semibold text-zinc-100 mb-3">
+          Selecciona un servicio
         </h1>
-        <p className="text-sm leading-6 text-zinc-400 mb-8">
-          Aquí verás tus aplicaciones activas y accederás a tus módulos
-          disponibles. Si no ves nada todavía, revisa tu acceso o actualiza la
-          página.
+        <p className="text-sm text-zinc-500 mb-6 leading-relaxed">
+          Elige una opción desde la barra lateral para acceder a tus módulos
+          disponibles.
         </p>
         <Link
           to="/"
-          className="inline-flex items-center justify-center gap-2 rounded-full bg-indigo-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-indigo-500"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-medium rounded-lg transition-colors border border-zinc-700"
         >
           Actualizar
         </Link>

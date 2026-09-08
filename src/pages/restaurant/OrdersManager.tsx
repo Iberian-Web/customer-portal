@@ -164,7 +164,7 @@ export default function OrdersManager() {
             {activeOrders.length} pedidos activos · hoy
           </p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors">
+        <button className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white text-sm font-medium rounded-lg transition-colors">
           <svg
             className="w-4 h-4"
             fill="none"
@@ -203,7 +203,7 @@ export default function OrdersManager() {
           {
             label: "Facturado hoy",
             value: `${totalRevenue.toFixed(2)} €`,
-            color: "text-indigo-400",
+            color: "text-teal-400",
           },
         ].map(({ label, value, color }) => (
           <div
@@ -239,7 +239,7 @@ export default function OrdersManager() {
             placeholder="Buscar por mesa, camarero, plato o nº de pedido..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-10 pr-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-colors"
+            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-10 pr-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/30 transition-colors"
           />
         </div>
       </div>
@@ -252,7 +252,7 @@ export default function OrdersManager() {
             onClick={() => setActiveStatus(s)}
             className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
               activeStatus === s
-                ? "bg-indigo-600 text-white"
+                ? "bg-teal-600 text-white"
                 : "bg-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700"
             }`}
           >
@@ -484,7 +484,7 @@ export default function OrdersManager() {
       <p className="text-xs text-zinc-600 mt-3">
         {filtered.length} resultado{filtered.length !== 1 ? "s" : ""}
         {activeStatus !== "Todos" && (
-          <span className="ml-2 text-indigo-500/60">
+          <span className="ml-2 text-teal-500/60">
             · filtrado por {statusLabel[activeStatus as OrderStatus]}
           </span>
         )}

@@ -24,7 +24,7 @@ const CATEGORY_META: Record<DishCategory, CategoryMeta> = {
   },
   PRINCIPAL: {
     label: "Principal",
-    style: "bg-indigo-500/10 text-indigo-400 ring-1 ring-indigo-500/20",
+    style: "bg-teal-500/10 text-teal-400 ring-1 ring-teal-500/20",
   },
   POSTRE: {
     label: "Postre",
@@ -44,7 +44,7 @@ const CATEGORY_META: Record<DishCategory, CategoryMeta> = {
   },
   MENU_CERRADO: {
     label: "Menú cerrado",
-    style: "bg-purple-500/10 text-purple-400 ring-1 ring-purple-500/20",
+    style: "bg-teal-500/10 text-teal-400 ring-1 ring-teal-500/20",
   },
 };
 
@@ -93,7 +93,7 @@ const emptyDishForm: DishForm = {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const inputClass =
-  "w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-colors";
+  "w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/30 transition-colors";
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -193,7 +193,7 @@ function DishModal({
     >
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
-        className="relative bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto"
+        className="relative bg-zinc-900 border border-zinc-700 rounded-xl w-full max-w-md p-6 shadow-lg space-y-4 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-base font-semibold text-zinc-100">
@@ -204,7 +204,7 @@ function DishModal({
           {/* Name */}
           <div>
             <label className="text-xs font-medium text-zinc-400 block mb-1.5">
-              Nombre <span className="text-indigo-400">*</span>
+              Nombre <span className="text-teal-400">*</span>
             </label>
             <input
               className={inputClass}
@@ -304,7 +304,7 @@ function DishModal({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
           >
             {saving && <Spinner />}
             {saving ? "Guardando…" : "Guardar"}
@@ -473,7 +473,7 @@ export default function MenuManager() {
         <button
           onClick={() => setDishModal({ open: true, dish: null })}
           disabled={!activeMenu}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
         >
           <svg
             className="w-4 h-4"
@@ -516,14 +516,14 @@ export default function MenuManager() {
                       if (e.key === "Enter") saveMenuRename(menu.id);
                       if (e.key === "Escape") setEditingMenuId(null);
                     }}
-                    className="w-full bg-zinc-800 border border-indigo-500 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none"
+                    className="w-full bg-zinc-800 border border-teal-500 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none"
                   />
                 ) : (
                   <button
                     onClick={() => setActiveMenuId(menu.id)}
                     className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                       activeMenuId === menu.id
-                        ? "bg-indigo-600/15 text-indigo-400"
+                        ? "bg-teal-600/15 text-teal-400"
                         : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
                     }`}
                   >
@@ -593,12 +593,12 @@ export default function MenuManager() {
                   if (e.key === "Enter") createMenu();
                 }}
                 placeholder="Nueva carta…"
-                className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-colors"
+                className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/30 transition-colors"
               />
               <button
                 onClick={createMenu}
                 disabled={!newMenuName.trim() || creatingMenu}
-                className="px-2 py-1.5 bg-zinc-800 border border-zinc-700 hover:border-indigo-500/50 hover:bg-indigo-500/10 disabled:opacity-40 text-zinc-400 hover:text-indigo-300 rounded-lg transition-colors"
+                className="px-2 py-1.5 bg-zinc-800 border border-zinc-700 hover:border-teal-500/50 hover:bg-teal-500/10 disabled:opacity-40 text-zinc-400 hover:text-teal-300 rounded-lg transition-colors"
               >
                 {creatingMenu ? (
                   <Spinner className="w-3 h-3" />
@@ -650,7 +650,7 @@ export default function MenuManager() {
                       placeholder="Buscar plato…"
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-10 pr-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-colors"
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-10 pr-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/30 transition-colors"
                     />
                   </div>
                   <div className="flex items-center gap-1.5 flex-wrap">
@@ -658,7 +658,7 @@ export default function MenuManager() {
                       onClick={() => setCategoryFilter("Todos")}
                       className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
                         categoryFilter === "Todos"
-                          ? "bg-indigo-600 text-white"
+                          ? "bg-teal-600 text-white"
                           : "bg-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700"
                       }`}
                     >
@@ -670,7 +670,7 @@ export default function MenuManager() {
                         onClick={() => setCategoryFilter(cat)}
                         className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
                           categoryFilter === cat
-                            ? "bg-indigo-600 text-white"
+                            ? "bg-teal-600 text-white"
                             : "bg-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700"
                         }`}
                       >
@@ -781,7 +781,7 @@ export default function MenuManager() {
                                   onClick={() =>
                                     setDishModal({ open: true, dish })
                                   }
-                                  className="p-1.5 text-zinc-500 hover:text-indigo-400 hover:bg-indigo-400/10 rounded-md transition-colors"
+                                  className="p-1.5 text-zinc-500 hover:text-teal-400 hover:bg-teal-400/10 rounded-md transition-colors"
                                   title="Editar"
                                 >
                                   <svg
@@ -841,7 +841,7 @@ export default function MenuManager() {
                   {filteredDishes.length} resultado
                   {filteredDishes.length !== 1 ? "s" : ""}
                   {categoryFilter !== "Todos" && (
-                    <span className="ml-2 text-indigo-500/60">
+                    <span className="ml-2 text-teal-500/60">
                       · filtrado por{" "}
                       {CATEGORY_META[categoryFilter as DishCategory]?.label}
                     </span>
@@ -871,7 +871,7 @@ export default function MenuManager() {
         >
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div
-            className="relative bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-sm p-6 shadow-2xl"
+            className="relative bg-zinc-900 border border-zinc-700 rounded-xl w-full max-w-sm p-6 shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-base font-semibold text-zinc-100 mb-2">
@@ -912,7 +912,7 @@ export default function MenuManager() {
         >
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div
-            className="relative bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-sm p-6 shadow-2xl"
+            className="relative bg-zinc-900 border border-zinc-700 rounded-xl w-full max-w-sm p-6 shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-base font-semibold text-zinc-100 mb-2">

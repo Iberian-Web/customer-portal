@@ -118,46 +118,27 @@ function buildNavSections(instances: Instance[]): Array<{
 function SidebarContent({
   loading,
   sections,
-  initials,
-  user,
+  companyName,
   onLinkClick,
   handleLogout,
 }: {
   loading: boolean;
   sections: Array<{ sectionLabel: string; items: NavEntry[] }>;
-  initials: string;
-  user: { name?: string; company?: string; email?: string } | null;
+  companyName: string;
   onLinkClick?: () => void;
   handleLogout: () => void;
 }) {
   return (
     <>
-      {/* Logo */}
+      {/* Header / Company Name */}
       <div className="h-16 flex items-center px-5 border-b border-zinc-800 shrink-0">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-md bg-indigo-600 flex items-center justify-center shrink-0">
-            <svg
-              className="w-4 h-4 text-white"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"
-              />
-            </svg>
-          </div>
-          <span className="text-sm font-semibold text-zinc-100 tracking-tight">
-            Mi Portal
-          </span>
-        </div>
+        <span className="text-sm font-medium text-zinc-200 truncate">
+          {companyName}
+        </span>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-5">
+      <nav className="flex-1 px-3 py-4 space-y-4 overflow-y-auto">
         {loading ? (
           <div className="space-y-2 px-2">
             {[1, 2, 3].map((i) => (
@@ -174,10 +155,10 @@ function SidebarContent({
         ) : (
           sections.map(({ sectionLabel, items }) => (
             <div key={sectionLabel}>
-              <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest px-2 mb-1.5">
+              <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest px-2 mb-2">
                 {sectionLabel}
               </p>
-              <div className="space-y-0.5">
+              <div className="space-y-1">
                 {items.map(({ to, label, icon }) => (
                   <NavLink
                     key={to}
@@ -185,10 +166,10 @@ function SidebarContent({
                     end
                     onClick={onLinkClick}
                     className={({ isActive }) =>
-                      `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                      `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                         isActive
-                          ? "bg-indigo-600/15 text-indigo-400"
-                          : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+                          ? "bg-zinc-800 text-zinc-100"
+                          : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60"
                       }`
                     }
                   >
@@ -202,36 +183,23 @@ function SidebarContent({
         )}
       </nav>
 
-      {/* User + logout */}
-      <div className="px-3 py-4 border-t border-zinc-800 shrink-0">
-        <div className="flex items-center gap-3 px-2 py-2 rounded-md">
-          <div className="w-7 h-7 rounded-full bg-zinc-700 flex items-center justify-center text-xs font-semibold text-zinc-300 shrink-0">
-            {initials}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-zinc-200 truncate">
-              {user?.name ?? "—"}
-            </p>
-            <p className="text-[10px] text-zinc-500 truncate">
-              {user?.company || user?.email}
-            </p>
-          </div>
-        </div>
+      {/* Session actions */}
+      <div className="px-3 py-3 border-t border-zinc-800 shrink-0">
         <button
           onClick={handleLogout}
-          className="mt-1 w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
+          className="w-full px-3 py-2 text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60 rounded-lg transition-colors text-left flex items-center gap-2.5"
         >
           <svg
-            className="w-3.5 h-3.5"
+            className="w-4 h-4"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
-            strokeWidth={2}
+            strokeWidth={1.8}
           >
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
-              d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"
+              d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9"
             />
           </svg>
           Cerrar sesión
@@ -254,13 +222,7 @@ export default function Sidebar() {
   };
 
   const sections = access ? buildNavSections(access.instances) : [];
-
-  const initials = (user?.name ?? "?")
-    .split(" ")
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase();
+  const companyName = user?.company || user?.name || "Mi Empresa";
 
   const closeDrawer = () => setMobileOpen(false);
 
@@ -268,26 +230,9 @@ export default function Sidebar() {
     <>
       {/* ── Mobile top bar ─────────────────────────────────────────────────── */}
       <header className="md:hidden sticky top-0 z-40 h-14 flex items-center justify-between px-4 bg-zinc-900 border-b border-zinc-800">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-md bg-indigo-600 flex items-center justify-center shrink-0">
-            <svg
-              className="w-4 h-4 text-white"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"
-              />
-            </svg>
-          </div>
-          <span className="text-sm font-semibold text-zinc-100 tracking-tight">
-            Mi Portal
-          </span>
-        </div>
+        <span className="text-sm font-medium text-zinc-200 truncate">
+          {companyName}
+        </span>
 
         {/* Hamburger */}
         <button
@@ -297,13 +242,19 @@ export default function Sidebar() {
         >
           <div className="absolute w-5 h-4 flex flex-col justify-between items-center">
             <span
-              className={`h-0.5 w-full bg-current rounded transform transition-all duration-300 ${mobileOpen ? "rotate-45 translate-y-1.75" : ""}`}
+              className={`h-0.5 w-full bg-current rounded transform transition-all duration-300 ${
+                mobileOpen ? "rotate-45 translate-y-1.75" : ""
+              }`}
             />
             <span
-              className={`h-0.5 w-full bg-current rounded transition-all duration-300 ${mobileOpen ? "opacity-0 scale-0" : ""}`}
+              className={`h-0.5 w-full bg-current rounded transition-all duration-300 ${
+                mobileOpen ? "opacity-0 scale-0" : ""
+              }`}
             />
             <span
-              className={`h-0.5 w-full bg-current rounded transform transition-all duration-300 ${mobileOpen ? "-rotate-45 -translate-y-2.25" : ""}`}
+              className={`h-0.5 w-full bg-current rounded transform transition-all duration-300 ${
+                mobileOpen ? "-rotate-45 -translate-y-2.25" : ""
+              }`}
             />
           </div>
         </button>
@@ -327,20 +278,18 @@ export default function Sidebar() {
         <SidebarContent
           loading={isLoading}
           sections={sections}
-          initials={initials}
-          user={user ?? null}
+          companyName={companyName}
           onLinkClick={closeDrawer}
           handleLogout={handleLogout}
         />
       </div>
 
-      {/* ── Desktop sidebar (unchanged) ─────────────────────────────────────── */}
+      {/* ── Desktop sidebar ─────────────────────────────────────────────────── */}
       <aside className="hidden md:flex w-56 shrink-0 bg-zinc-900 border-r border-zinc-800 flex-col h-screen sticky top-0">
         <SidebarContent
           loading={isLoading}
           sections={sections}
-          initials={initials}
-          user={user ?? null}
+          companyName={companyName}
           handleLogout={handleLogout}
         />
       </aside>

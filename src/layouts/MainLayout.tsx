@@ -3,7 +3,7 @@ import Sidebar from "../components/Sidebar";
 
 export default function MainLayout() {
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-zinc-950 text-zinc-100 font-sans antialiased selection:bg-indigo-500 selection:text-white">
+    <div className="flex flex-col md:flex-row min-h-screen bg-zinc-900 text-zinc-100 font-sans antialiased selection:bg-teal-500 selection:text-white">
       <Sidebar />
       <main className="flex-1 overflow-auto">
         <Outlet />
