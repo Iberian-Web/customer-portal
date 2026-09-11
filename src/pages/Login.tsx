@@ -27,26 +27,28 @@ export default function Login() {
   };
 
   const inputClass =
-    "w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
+    "w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-800 dark:text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-zinc-950 px-4">
+    <div className="flex items-center justify-center min-h-screen bg-zinc-50 dark:bg-zinc-950 px-4">
       <div className="w-full max-w-sm">
         {/* Branding */}
         <div className="mb-6 text-center">
-          <h1 className="text-lg font-medium text-zinc-200">Bienvenido/a</h1>
+          <h1 className="text-lg font-medium text-zinc-800 dark:text-zinc-200">
+            Bienvenido/a
+          </h1>
         </div>
 
         {/* Form */}
         <form
           onSubmit={handleSubmit}
-          className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 space-y-4"
+          className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-6 space-y-4"
         >
           {/* Username */}
           <div>
             <label
               htmlFor="username"
-              className="text-xs font-medium text-zinc-400 block mb-1.5"
+              className="text-xs font-medium text-zinc-600 dark:text-zinc-400 block mb-1.5"
             >
               Usuario
             </label>
@@ -67,7 +69,7 @@ export default function Login() {
           <div>
             <label
               htmlFor="password"
-              className="text-xs font-medium text-zinc-400 block mb-1.5"
+              className="text-xs font-medium text-zinc-600 dark:text-zinc-400 block mb-1.5"
             >
               Contraseña
             </label>
@@ -86,7 +88,7 @@ export default function Login() {
 
           {/* Error */}
           {error && (
-            <p className="text-xs text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-4 py-3">
+            <p className="text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-400/10 border border-red-200 dark:border-red-400/20 rounded-lg px-4 py-3">
               {error}
             </p>
           )}
@@ -95,7 +97,7 @@ export default function Login() {
           <button
             type="submit"
             disabled={isLoading || !username || !password}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium rounded-lg transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 border border-zinc-300 dark:border-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium rounded-lg transition-colors"
           >
             {isLoading && (
               <svg

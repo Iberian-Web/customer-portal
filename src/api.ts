@@ -29,14 +29,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 // ─── Enums (mirror schema.prisma — restaurant schema) ─────────────────────────
 
-export type DishCategory =
-  | "ENTRANTE"
-  | "PRINCIPAL"
-  | "POSTRE"
-  | "BEBIDA"
-  | "GUARNICION"
-  | "TAPA"
-  | "MENU_CERRADO";
+// Antes era un enum cerrado; ahora es texto libre para poder crear
+// secciones de carta nuevas (p. ej. "Especiales", "Cumpleaños") sin límite.
+export type DishCategory = string;
 
 export type Allergen =
   | "GLUTEN"
@@ -57,11 +52,13 @@ export type Allergen =
 export type ReservationStatus =
   "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED" | "NO_SHOW";
 
+export type OrderStatus =
+  "PENDING" | "IN_PROGRESS" | "READY" | "DELIVERED" | "CANCELLED";
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type User = {
   id: string;
-  username: string;
   name: string;
   email: string;
   company: string;
@@ -109,6 +106,10 @@ export type Instance = {
 // Shape returned by GET /api/portal/my-access
 export type MyAccess = User & {
   instances: Instance[];
+  // Nombre del camarero/a autenticado (resuelto por el backend a partir de
+  // la sesión). Úsalo para asociar pedidos a la persona que ha iniciado
+  // sesión sin pedírselo en ningún formulario.
+  waiterName: string;
 };
 
 export type Dish = {
@@ -127,6 +128,16 @@ export type Menu = {
   name: string;
   createdAt: string;
   dishes: Dish[];
+};
+
+// Sección de la carta (Entrante, Principal...): gestionable — se puede
+// crear, renombrar, reordenar (position) y eliminar por restaurante.
+export type MenuSection = {
+  id: number;
+  instanceId: number;
+  name: string;
+  position: number;
+  createdAt: string;
 };
 
 export type Reservation = {
@@ -156,6 +167,46 @@ export type ReservationUpdate = Partial<
   ReservationCreate & { status: ReservationStatus }
 >;
 
+export type OrderItem = {
+  id: number;
+  orderId: number;
+  dishName: string;
+  quantity: number;
+  unitPrice: number;
+};
+
+export type Order = {
+  id: number;
+  instanceId: number;
+  tableNumber: number;
+  waiterName: string;
+  status: OrderStatus;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+  items: OrderItem[];
+  total: number; // calculado en el backend a partir de las líneas del pedido
+};
+
+export type OrderItemInput = {
+  dishName: string;
+  quantity: number;
+  unitPrice: number;
+};
+
+export type OrderCreate = {
+  tableNumber: number;
+  notes?: string;
+  items: OrderItemInput[];
+  // Si es true, el pedido se crea directamente en cocina (IN_PROGRESS) en
+  // vez de quedar en "Nuevos" (PENDING) a la espera de enviarse.
+  sendToKitchen?: boolean;
+};
+
+export type OrderUpdate = Partial<
+  Omit<OrderCreate, "items"> & { status: OrderStatus; items: OrderItemInput[] }
+>;
+
 // ─── Portal endpoints ─────────────────────────────────────────────────────────
 
 export const portalApi = {
@@ -182,6 +233,31 @@ export const menusApi = {
 
   remove: (menuId: number) =>
     request<void>(`/api/menus/${menuId}`, { method: "DELETE" }),
+};
+
+// ─── Menu section endpoints ───────────────────────────────────────────────────
+
+export const menuSectionsApi = {
+  list: (instanceId: number) =>
+    request<MenuSection[]>(`/api/instances/${instanceId}/menu-sections`),
+
+  create: (instanceId: number, name: string) =>
+    request<MenuSection>(`/api/instances/${instanceId}/menu-sections`, {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
+
+  update: (
+    sectionId: number,
+    data: Partial<{ name: string; position: number }>,
+  ) =>
+    request<MenuSection>(`/api/menu-sections/${sectionId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  remove: (sectionId: number) =>
+    request<void>(`/api/menu-sections/${sectionId}`, { method: "DELETE" }),
 };
 
 // ─── Dish endpoints ───────────────────────────────────────────────────────────
@@ -258,4 +334,42 @@ export const reservationsApi = {
 
   remove: (reservationId: number) =>
     request<void>(`/api/reservations/${reservationId}`, { method: "DELETE" }),
+};
+
+// ─── Order endpoints ──────────────────────────────────────────────────────────
+
+export const ordersApi = {
+  // List orders for an instance. Optionally filter by status.
+  list: (instanceId: number, filters?: { status?: OrderStatus }) => {
+    const params = new URLSearchParams();
+    if (filters?.status) params.set("status", filters.status);
+    const qs = params.toString();
+    return request<Order[]>(
+      `/api/instances/${instanceId}/orders${qs ? `?${qs}` : ""}`,
+    );
+  },
+
+  // Single-order detail — used by the order create/edit page.
+  get: (orderId: number) => request<Order>(`/api/orders/${orderId}`),
+
+  create: (instanceId: number, data: OrderCreate) =>
+    request<Order>(`/api/instances/${instanceId}/orders`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  update: (orderId: number, data: OrderUpdate) =>
+    request<Order>(`/api/orders/${orderId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  updateStatus: (orderId: number, status: OrderStatus) =>
+    request<Order>(`/api/orders/${orderId}`, {
+      method: "PUT",
+      body: JSON.stringify({ status }),
+    }),
+
+  remove: (orderId: number) =>
+    request<void>(`/api/orders/${orderId}`, { method: "DELETE" }),
 };

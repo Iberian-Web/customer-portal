@@ -6,13 +6,14 @@ import Home from "./pages/Home";
 import NotFound from "./pages/NotFound";
 import MenuManager from "./pages/restaurant/MenuManager";
 import OrdersManager from "./pages/restaurant/OrdersManager";
+import OrderForm from "./pages/restaurant/OrderForm";
+import KitchenDisplay from "./pages/restaurant/KitchenDisplay";
 import ReservationsManager from "./pages/restaurant/ReservationsManager";
-// import PropertiesManager from "./pages/realestate/PropertiesManager";
 import { useAuth } from "./auth/useAuth";
 
 function LoadingScreen() {
   return (
-    <div className="flex items-center justify-center min-h-screen bg-zinc-950">
+    <div className="flex items-center justify-center min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <svg
         className="w-5 h-5 text-zinc-600 animate-spin"
         fill="none"
@@ -60,19 +61,29 @@ export default function App() {
           <Route index element={<Home />} />
 
           <Route
-            path="/restaurant/:instanceId/menu"
+            path="/restaurant/:companySlug/menu"
             element={<MenuManager />}
           />
           <Route
-            path="/restaurant/:instanceId/orders"
+            path="/restaurant/:companySlug/orders"
             element={<OrdersManager />}
           />
           <Route
-            path="/restaurant/:instanceId/reservations"
+            path="/restaurant/:companySlug/orders/new"
+            element={<OrderForm />}
+          />
+          <Route
+            path="/restaurant/:companySlug/orders/:orderId"
+            element={<OrderForm />}
+          />
+          <Route
+            path="/restaurant/:companySlug/kitchen"
+            element={<KitchenDisplay />}
+          />
+          <Route
+            path="/restaurant/:companySlug/reservations"
             element={<ReservationsManager />}
           />
-
-          {/* <Route path="/realestate/:instanceId/properties" element={<PropertiesManager />} /> */}
         </Route>
         <Route path="*" element={<NotFound />} />
       </Routes>

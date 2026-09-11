@@ -1,172 +1,482 @@
-import { useState, useMemo } from "react";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type OrderStatus =
-  "PENDING" | "IN_PROGRESS" | "READY" | "DELIVERED" | "CANCELLED";
-
-interface OrderItem {
-  name: string;
-  qty: number;
-  price: number;
-}
-
-interface Order {
-  id: number;
-  tableNumber: number;
-  waiter: string;
-  status: OrderStatus;
-  items: OrderItem[];
-  total: number;
-  createdAt: string;
-  notes?: string;
-}
-
-// ─── Mock data ────────────────────────────────────────────────────────────────
-
-const mockOrders: Order[] = [
-  {
-    id: 1001,
-    tableNumber: 4,
-    waiter: "María G.",
-    status: "IN_PROGRESS",
-    items: [
-      { name: "Croquetas de jamón", qty: 2, price: 8.5 },
-      { name: "Solomillo a la brasa", qty: 1, price: 24.5 },
-      { name: "Agua mineral", qty: 2, price: 2.0 },
-    ],
-    total: 45.5,
-    createdAt: "14:32",
-    notes: "Sin gluten en las croquetas",
-  },
-  {
-    id: 1002,
-    tableNumber: 7,
-    waiter: "Carlos R.",
-    status: "PENDING",
-    items: [
-      { name: "Ensalada César", qty: 2, price: 11.0 },
-      { name: "Pasta al pesto", qty: 1, price: 14.0 },
-    ],
-    total: 36.0,
-    createdAt: "14:45",
-  },
-  {
-    id: 1003,
-    tableNumber: 2,
-    waiter: "Laura M.",
-    status: "READY",
-    items: [
-      { name: "Solomillo a la brasa", qty: 2, price: 24.5 },
-      { name: "Tiramisú artesanal", qty: 2, price: 6.5 },
-    ],
-    total: 62.0,
-    createdAt: "14:10",
-  },
-  {
-    id: 1004,
-    tableNumber: 11,
-    waiter: "María G.",
-    status: "DELIVERED",
-    items: [
-      { name: "Croquetas de jamón", qty: 1, price: 8.5 },
-      { name: "Agua mineral", qty: 3, price: 2.0 },
-    ],
-    total: 14.5,
-    createdAt: "13:58",
-  },
-  {
-    id: 1005,
-    tableNumber: 9,
-    waiter: "Carlos R.",
-    status: "CANCELLED",
-    items: [{ name: "Pasta al pesto", qty: 2, price: 14.0 }],
-    total: 28.0,
-    createdAt: "13:30",
-    notes: "Cliente se marchó",
-  },
-  {
-    id: 1006,
-    tableNumber: 1,
-    waiter: "Laura M.",
-    status: "IN_PROGRESS",
-    items: [
-      { name: "Ensalada César", qty: 1, price: 11.0 },
-      { name: "Solomillo a la brasa", qty: 2, price: 24.5 },
-      { name: "Tiramisú artesanal", qty: 1, price: 6.5 },
-      { name: "Agua mineral", qty: 2, price: 2.0 },
-    ],
-    total: 70.5,
-    createdAt: "14:50",
-  },
-];
+// customer-portal/src/pages/restaurant/OrdersManager.tsx
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { ordersApi, type Order, type OrderStatus } from "../../api";
+import { useRestaurantInstance } from "../../hooks/useRestaurantInstance";
+import ConfirmDialog from "../../components/ConfirmDialog";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-const statusLabel: Record<OrderStatus, string> = {
-  PENDING: "Pendiente",
+const STATUS_LABEL: Record<OrderStatus, string> = {
+  PENDING: "Nuevo · sin enviar",
   IN_PROGRESS: "En cocina",
   READY: "Listo",
   DELIVERED: "Entregado",
   CANCELLED: "Cancelado",
 };
 
-const statusStyles: Record<OrderStatus, string> = {
-  PENDING: "bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20",
-  IN_PROGRESS: "bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20",
-  READY: "bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20",
-  DELIVERED: "bg-zinc-700/40 text-zinc-400 ring-1 ring-zinc-600/30",
-  CANCELLED: "bg-red-500/10 text-red-400 ring-1 ring-red-500/20",
+const STATUS_STYLES: Record<OrderStatus, string> = {
+  PENDING:
+    "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 ring-1 ring-amber-200 dark:ring-amber-500/20",
+  IN_PROGRESS:
+    "bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 ring-1 ring-blue-200 dark:ring-blue-500/20",
+  READY:
+    "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-200 dark:ring-emerald-500/20",
+  DELIVERED:
+    "bg-zinc-100 dark:bg-zinc-700/40 text-zinc-600 dark:text-zinc-400 ring-1 ring-zinc-300 dark:ring-zinc-600/30",
+  CANCELLED:
+    "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 ring-1 ring-red-200 dark:ring-red-500/20",
 };
 
-const ALL_STATUSES = Object.keys(statusLabel) as OrderStatus[];
+// Un borde lateral de color por estado, para poder distinguir tarjetas de un
+// vistazo aunque estén muy juntas en la rejilla.
+const STATUS_ACCENT: Record<OrderStatus, string> = {
+  PENDING: "border-l-amber-500/70",
+  IN_PROGRESS: "border-l-blue-500/70",
+  READY: "border-l-emerald-500/70",
+  DELIVERED: "border-l-zinc-300 dark:border-l-zinc-700",
+  CANCELLED: "border-l-red-500/50",
+};
+
+const ALL_STATUSES = Object.keys(STATUS_LABEL) as OrderStatus[];
+
+/** Próximo estado "natural" del ciclo de vida de un pedido, y la etiqueta del botón. */
+const NEXT_STATUS: Partial<
+  Record<OrderStatus, { next: OrderStatus; label: string; style: string }>
+> = {
+  PENDING: {
+    next: "IN_PROGRESS",
+    label: "Enviar a cocina",
+    style: "bg-blue-600 hover:bg-blue-500 text-white",
+  },
+  IN_PROGRESS: {
+    next: "READY",
+    label: "Marcar como listo",
+    style: "bg-emerald-600 hover:bg-emerald-500 text-white",
+  },
+  READY: {
+    next: "DELIVERED",
+    label: "Marcar como entregado",
+    style: "bg-teal-600 hover:bg-teal-500 text-white",
+  },
+};
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+function toLocalTimeString(iso: string): string {
+  return new Date(iso).toLocaleTimeString("es-ES", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function isToday(iso: string): boolean {
+  const d = new Date(iso);
+  const now = new Date();
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  );
+}
+
+function money(n: number): string {
+  return `${n.toFixed(2)} €`;
+}
+
+// ─── Ticket de impresión ────────────────────────────────────────────────────
+
+function printOrderTicket(order: Order) {
+  const win = window.open("", "_blank", "width=380,height=600");
+  if (!win) return;
+
+  const rows = order.items
+    .map(
+      (it) => `
+        <tr>
+          <td style="padding:2px 0;">${it.quantity}×</td>
+          <td style="padding:2px 6px;">${it.dishName}</td>
+          <td style="padding:2px 0;text-align:right;">${(it.quantity * it.unitPrice).toFixed(2)} €</td>
+        </tr>`,
+    )
+    .join("");
+
+  win.document.write(`
+    <html>
+      <head>
+        <title>Pedido #${order.id}</title>
+        <style>
+          body { font-family: 'Courier New', monospace; font-size: 13px; padding: 16px; color: #111; }
+          h1 { font-size: 16px; margin: 0 0 4px; text-align: center; }
+          p { margin: 2px 0; }
+          table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+          .divider { border-top: 1px dashed #999; margin: 10px 0; }
+          .total { font-weight: bold; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <h1>Pedido #${order.id}</h1>
+        <p style="text-align:center;">Mesa ${order.tableNumber} · ${order.waiterName}</p>
+        <p style="text-align:center;">${new Date(order.createdAt).toLocaleString("es-ES")}</p>
+        <div class="divider"></div>
+        <table>${rows}</table>
+        <div class="divider"></div>
+        <p class="total" style="text-align:right;">TOTAL: ${order.total.toFixed(2)} €</p>
+        ${order.notes ? `<div class="divider"></div><p>Notas: ${order.notes}</p>` : ""}
+      </body>
+    </html>
+  `);
+  win.document.close();
+  win.focus();
+  win.print();
+}
+
+// ─── Tarjeta de pedido ────────────────────────────────────────────────────────
+
+function OrderCard({
+  order,
+  updating,
+  onAdvance,
+  onCancel,
+  onEdit,
+  onPrint,
+  onDelete,
+}: {
+  order: Order;
+  updating: boolean;
+  onAdvance: () => void;
+  onCancel: () => void;
+  onEdit: () => void;
+  onPrint: () => void;
+  onDelete: () => void;
+}) {
+  const nextAction = NEXT_STATUS[order.status];
+  const canCancel = !["DELIVERED", "CANCELLED"].includes(order.status);
+
+  return (
+    <div
+      className={`flex flex-col bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 border-l-4 ${STATUS_ACCENT[order.status]} rounded-2xl p-5 gap-3`}
+    >
+      {/* Cabecera */}
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-3xl font-black text-zinc-900 dark:text-zinc-100 leading-none">
+            {order.tableNumber}
+          </p>
+          <p className="text-xs text-zinc-500 mt-1.5">
+            #{order.id} · {order.waiterName}
+          </p>
+        </div>
+        <div className="flex flex-col items-end gap-1.5">
+          <span
+            className={`px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${STATUS_STYLES[order.status]}`}
+          >
+            {STATUS_LABEL[order.status]}
+          </span>
+          <span className="text-xs text-zinc-600 tabular-nums">
+            {toLocalTimeString(order.createdAt)}
+          </span>
+        </div>
+      </div>
+
+      {/* Platos */}
+      <div className="space-y-1 border-t border-zinc-200 dark:border-zinc-800 pt-3 flex-1">
+        {order.items.map((item) => (
+          <div key={item.id} className="flex items-baseline gap-2 text-sm">
+            <span className="text-zinc-500 shrink-0">{item.quantity}×</span>
+            <span className="text-zinc-700 dark:text-zinc-300 truncate">
+              {item.dishName}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Notas */}
+      {order.notes && (
+        <p className="text-xs text-red-800 dark:text-red-300 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-lg px-2.5 py-1.5 leading-snug">
+          {order.notes}
+        </p>
+      )}
+
+      {/* Total */}
+      <div className="flex items-center justify-between text-sm font-medium border-t border-zinc-200 dark:border-zinc-800 pt-3">
+        <span className="text-zinc-600 dark:text-zinc-400">Total</span>
+        <span className="text-zinc-900 dark:text-zinc-100 tabular-nums">
+          {money(order.total)}
+        </span>
+      </div>
+
+      {/* Acciones */}
+      <div className="flex items-center gap-2">
+        {nextAction && (
+          <button
+            disabled={updating}
+            onClick={onAdvance}
+            className={`flex-1 px-3 py-3 text-sm font-bold rounded-xl transition-colors disabled:opacity-50 ${nextAction.style}`}
+          >
+            {nextAction.label}
+          </button>
+        )}
+        <div className="ml-auto flex items-center gap-1">
+          <button
+            onClick={onEdit}
+            title="Editar pedido"
+            className="p-3 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.8}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"
+              />
+            </svg>
+          </button>
+          <button
+            onClick={onPrint}
+            title="Imprimir ticket"
+            className="p-3 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.8}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 00-1.913-.247M6.34 18H5.25A2.25 2.25 0 013 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 011.913-.247m10.5 0a48.536 48.536 0 00-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659"
+              />
+            </svg>
+          </button>
+          {canCancel && (
+            <button
+              disabled={updating}
+              onClick={onCancel}
+              title="Cancelar pedido"
+              className="p-3 text-zinc-500 hover:text-amber-700 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-400/10 rounded-xl transition-colors disabled:opacity-50"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={1.8}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
+                />
+              </svg>
+            </button>
+          )}
+          <button
+            onClick={onDelete}
+            title="Eliminar pedido"
+            className="p-3 text-zinc-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded-xl transition-colors"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.8}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 01-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+              />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function OrdersManager() {
-  const [orders] = useState<Order[]>(mockOrders);
+  const navigate = useNavigate();
+  const instance = useRestaurantInstance();
+  const id = instance?.id ?? 0;
+  const slug = instance?.slug ?? "";
+
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // UI state
   const [search, setSearch] = useState("");
   const [activeStatus, setActiveStatus] = useState<OrderStatus | "Todos">(
     "Todos",
   );
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  // Status update / delete in progress
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
+
+  // Confirmaciones pendientes (cancelar / eliminar), en vez de window.confirm()
+  const [cancelConfirm, setCancelConfirm] = useState<Order | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<Order | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // ── Fetch ─────────────────────────────────────────────────────────────────
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await ordersApi.list(id);
+      setOrders(data);
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, "Error al cargar los pedidos"));
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  // ── Filtering ─────────────────────────────────────────────────────────────
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return orders.filter((o) => {
-      const matchesSearch =
-        String(o.tableNumber).includes(q) ||
-        o.waiter.toLowerCase().includes(q) ||
-        o.items.some((i) => i.name.toLowerCase().includes(q)) ||
-        String(o.id).includes(q);
-      const matchesStatus =
-        activeStatus === "Todos" || o.status === activeStatus;
-      return matchesSearch && matchesStatus;
-    });
+    return orders
+      .filter((o) => {
+        const matchesSearch =
+          !q ||
+          String(o.tableNumber).includes(q) ||
+          o.waiterName.toLowerCase().includes(q) ||
+          o.items.some((i) => i.dishName.toLowerCase().includes(q)) ||
+          String(o.id).includes(q);
+        const matchesStatus =
+          activeStatus === "Todos" || o.status === activeStatus;
+        return matchesSearch && matchesStatus;
+      })
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
   }, [orders, search, activeStatus]);
 
-  const activeOrders = orders.filter((o) =>
-    ["PENDING", "IN_PROGRESS", "READY"].includes(o.status),
+  const todayOrders = useMemo(
+    () => orders.filter((o) => isToday(o.createdAt)),
+    [orders],
   );
-  const totalRevenue = orders
-    .filter((o) => o.status === "DELIVERED")
-    .reduce((sum, o) => sum + o.total, 0);
+
+  const stats = useMemo(
+    () => ({
+      inKitchen: orders.filter((o) => o.status === "IN_PROGRESS").length,
+      ready: orders.filter((o) => o.status === "READY").length,
+      pending: orders.filter((o) => o.status === "PENDING").length,
+      revenueToday: todayOrders
+        .filter((o) => o.status === "DELIVERED")
+        .reduce((sum, o) => sum + o.total, 0),
+    }),
+    [orders, todayOrders],
+  );
+
+  const activeCount = orders.filter((o) =>
+    ["PENDING", "IN_PROGRESS", "READY"].includes(o.status),
+  ).length;
+
+  // ── Status update ─────────────────────────────────────────────────────────
+
+  const handleStatusChange = async (order: Order, newStatus: OrderStatus) => {
+    setUpdatingId(order.id);
+    try {
+      const updated = await ordersApi.updateStatus(order.id, newStatus);
+      setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+    } catch (e: unknown) {
+      alert(getErrorMessage(e, "Error al actualizar el estado del pedido"));
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  // ── Cancel ────────────────────────────────────────────────────────────────
+
+  const handleCancelConfirmed = async () => {
+    if (!cancelConfirm) return;
+    setUpdatingId(cancelConfirm.id);
+    try {
+      const updated = await ordersApi.updateStatus(
+        cancelConfirm.id,
+        "CANCELLED",
+      );
+      setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+      setCancelConfirm(null);
+    } catch (e: unknown) {
+      alert(getErrorMessage(e, "Error al cancelar el pedido"));
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  // ── Delete ────────────────────────────────────────────────────────────────
+
+  const handleDeleteConfirmed = async () => {
+    if (!deleteConfirm) return;
+    setDeleting(true);
+    try {
+      await ordersApi.remove(deleteConfirm.id);
+      setOrders((prev) => prev.filter((o) => o.id !== deleteConfirm.id));
+      setDeleteConfirm(null);
+    } catch (e: unknown) {
+      alert(getErrorMessage(e, "Error al eliminar el pedido"));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // ─── Render ───────────────────────────────────────────────────────────────
+
+  if (error) {
+    return (
+      <div className="px-6 lg:px-8 py-6 w-full">
+        <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl px-5 py-4 text-sm text-red-700 dark:text-red-400">
+          {error}
+          <button onClick={load} className="ml-4 underline hover:no-underline">
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="px-8 py-8 max-w-6xl mx-auto w-full">
+    <div className="px-6 lg:px-8 py-6 w-full">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-semibold text-zinc-100">
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
             Gestión de pedidos
           </h1>
-          <p className="text-sm text-zinc-500 mt-0.5">
-            {activeOrders.length} pedidos activos · hoy
+          <p className="text-sm text-zinc-500 mt-1">
+            {activeCount} pedidos activos · hoy
           </p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white text-sm font-medium rounded-lg transition-colors">
+        <button
+          onClick={() => navigate(`/restaurant/${slug}/orders/new`)}
+          className="flex items-center gap-2 px-5 py-3 bg-teal-600 hover:bg-teal-500 text-white text-base font-bold rounded-xl transition-colors"
+        >
           <svg
-            className="w-4 h-4"
+            className="w-5 h-5"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -182,47 +492,51 @@ export default function OrdersManager() {
         </button>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-4 gap-4 mb-8">
+      {/* Barra de estadísticas */}
+      <div className="flex flex-wrap items-center gap-x-8 gap-y-3 px-5 py-3.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl mb-6">
         {[
           {
             label: "En cocina",
-            value: orders.filter((o) => o.status === "IN_PROGRESS").length,
-            color: "text-blue-400",
+            value: stats.inKitchen,
+            color: "text-blue-700 dark:text-blue-400",
           },
           {
-            label: "Listos para servir",
-            value: orders.filter((o) => o.status === "READY").length,
-            color: "text-emerald-400",
+            label: "Listos",
+            value: stats.ready,
+            color: "text-emerald-700 dark:text-emerald-400",
           },
           {
             label: "Pendientes",
-            value: orders.filter((o) => o.status === "PENDING").length,
-            color: "text-amber-400",
+            value: stats.pending,
+            color: "text-amber-700 dark:text-amber-400",
           },
           {
             label: "Facturado hoy",
-            value: `${totalRevenue.toFixed(2)} €`,
-            color: "text-teal-400",
+            value: money(stats.revenueToday),
+            color: "text-teal-700 dark:text-teal-400",
           },
-        ].map(({ label, value, color }) => (
+        ].map(({ label, value, color }, i) => (
           <div
             key={label}
-            className="bg-zinc-900 border border-zinc-800 rounded-xl px-5 py-4"
+            className={`flex items-center gap-2 ${i > 0 ? "border-l border-zinc-200 dark:border-zinc-800 pl-8" : ""}`}
           >
-            <p className="text-xs font-medium text-zinc-500 mb-1">{label}</p>
-            <p className={`text-2xl font-semibold ${color} tabular-nums`}>
-              {value}
-            </p>
+            <span className={`text-xl font-bold tabular-nums ${color}`}>
+              {loading ? (
+                <span className="w-8 h-5 bg-zinc-100 dark:bg-zinc-800 rounded animate-pulse inline-block" />
+              ) : (
+                value
+              )}
+            </span>
+            <span className="text-xs text-zinc-500">{label}</span>
           </div>
         ))}
       </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="relative flex-1">
+      {/* Filtros */}
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        <div className="relative flex-1 min-w-72">
           <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500"
+            className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -239,256 +553,109 @@ export default function OrdersManager() {
             placeholder="Buscar por mesa, camarero, plato o nº de pedido..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-10 pr-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/30 transition-colors"
+            className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl pl-12 pr-4 py-3 text-base text-zinc-800 dark:text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30 transition-colors"
           />
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {(["Todos", ...ALL_STATUSES] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setActiveStatus(s)}
+              className={`px-4 py-2.5 rounded-full text-sm font-semibold transition-colors ${
+                activeStatus === s
+                  ? "bg-teal-600 text-white"
+                  : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+              }`}
+            >
+              {s === "Todos" ? "Todos" : STATUS_LABEL[s]}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Status pills */}
-      <div className="flex items-center gap-2 mb-5">
-        {(["Todos", ...ALL_STATUSES] as const).map((s) => (
-          <button
-            key={s}
-            onClick={() => setActiveStatus(s)}
-            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-              activeStatus === s
-                ? "bg-teal-600 text-white"
-                : "bg-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700"
-            }`}
-          >
-            {s === "Todos" ? "Todos" : statusLabel[s]}
-          </button>
-        ))}
-      </div>
+      {/* Rejilla de pedidos */}
+      {loading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-64 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl animate-pulse"
+            />
+          ))}
+        </div>
+      ) : filtered.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          {filtered.map((order) => (
+            <OrderCard
+              key={order.id}
+              order={order}
+              updating={updatingId === order.id}
+              onAdvance={() => {
+                const next = NEXT_STATUS[order.status];
+                if (next) void handleStatusChange(order, next.next);
+              }}
+              onCancel={() => setCancelConfirm(order)}
+              onEdit={() => navigate(`/restaurant/${slug}/orders/${order.id}`)}
+              onPrint={() => printOrderTicket(order)}
+              onDelete={() => setDeleteConfirm(order)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-5 py-16 text-center text-zinc-500 text-sm">
+          {search
+            ? `No se encontraron pedidos para «${search}».`
+            : "No hay pedidos aún."}
+        </div>
+      )}
 
-      {/* Table */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
-        <table className="w-full text-sm table-fixed">
-          <colgroup>
-            <col className="w-[8%]" />
-            <col className="w-[8%]" />
-            <col className="w-[14%]" />
-            <col className="w-[30%]" />
-            <col className="w-[12%]" />
-            <col className="w-[12%]" />
-            <col className="w-[10%]" />
-            <col className="w-[6%]" />
-          </colgroup>
-          <thead>
-            <tr className="border-b border-zinc-800 text-left">
-              {[
-                "#",
-                "Mesa",
-                "Camarero",
-                "Platos",
-                "Total",
-                "Estado",
-                "Hora",
-              ].map((h) => (
-                <th
-                  key={h}
-                  className="px-5 py-3.5 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider"
-                >
-                  {h}
-                </th>
-              ))}
-              <th className="px-5 py-3.5" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-800">
-            {filtered.length > 0 ? (
-              filtered.map((order) => (
-                <>
-                  <tr
-                    key={order.id}
-                    onClick={() =>
-                      setExpandedId(expandedId === order.id ? null : order.id)
-                    }
-                    className="hover:bg-zinc-800/50 transition-colors cursor-pointer"
-                  >
-                    {/* ID */}
-                    <td className="px-5 py-3.5">
-                      <span className="text-zinc-500 text-xs font-mono">
-                        #{order.id}
-                      </span>
-                    </td>
-                    {/* Table */}
-                    <td className="px-5 py-3.5">
-                      <span className="font-medium text-zinc-200">
-                        Mesa {order.tableNumber}
-                      </span>
-                    </td>
-                    {/* Waiter */}
-                    <td className="px-5 py-3.5">
-                      <span
-                        className="text-zinc-400 truncate block"
-                        title={order.waiter}
-                      >
-                        {order.waiter}
-                      </span>
-                    </td>
-                    {/* Items preview */}
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-1 flex-wrap">
-                        {order.items.slice(0, 2).map((item) => (
-                          <span
-                            key={item.name}
-                            className="text-[10px] font-medium bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded truncate max-w-30"
-                            title={item.name}
-                          >
-                            {item.qty}× {item.name}
-                          </span>
-                        ))}
-                        {order.items.length > 2 && (
-                          <span className="text-[10px] font-medium bg-zinc-800 text-zinc-500 px-1.5 py-0.5 rounded shrink-0">
-                            +{order.items.length - 2}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    {/* Total */}
-                    <td className="px-5 py-3.5">
-                      <span className="text-zinc-200 font-medium tabular-nums">
-                        {order.total.toFixed(2)} €
-                      </span>
-                    </td>
-                    {/* Status */}
-                    <td className="px-5 py-3.5">
-                      <span
-                        className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap ${statusStyles[order.status]}`}
-                      >
-                        {statusLabel[order.status]}
-                      </span>
-                    </td>
-                    {/* Time */}
-                    <td className="px-5 py-3.5">
-                      <span className="text-zinc-500 text-xs tabular-nums">
-                        {order.createdAt}
-                      </span>
-                    </td>
-                    {/* Expand icon */}
-                    <td
-                      className="px-5 py-3.5"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <button
-                        onClick={() =>
-                          setExpandedId(
-                            expandedId === order.id ? null : order.id,
-                          )
-                        }
-                        className="p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700 rounded-md transition-colors"
-                      >
-                        <svg
-                          className={`w-3.5 h-3.5 transition-transform ${expandedId === order.id ? "rotate-180" : ""}`}
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          strokeWidth={2}
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M19.5 8.25l-7.5 7.5-7.5-7.5"
-                          />
-                        </svg>
-                      </button>
-                    </td>
-                  </tr>
-                  {/* Expanded detail */}
-                  {expandedId === order.id && (
-                    <tr key={`${order.id}-detail`} className="bg-zinc-950/50">
-                      <td colSpan={8} className="px-5 py-4">
-                        <div className="flex gap-8">
-                          <div className="flex-1">
-                            <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider mb-3">
-                              Detalle del pedido
-                            </p>
-                            <div className="space-y-1.5">
-                              {order.items.map((item) => (
-                                <div
-                                  key={item.name}
-                                  className="flex items-center justify-between text-sm"
-                                >
-                                  <span className="text-zinc-300">
-                                    <span className="text-zinc-500 mr-2">
-                                      {item.qty}×
-                                    </span>
-                                    {item.name}
-                                  </span>
-                                  <span className="text-zinc-400 tabular-nums">
-                                    {(item.qty * item.price).toFixed(2)} €
-                                  </span>
-                                </div>
-                              ))}
-                              <div className="border-t border-zinc-800 pt-1.5 mt-1.5 flex items-center justify-between font-medium text-sm">
-                                <span className="text-zinc-300">Total</span>
-                                <span className="text-zinc-100 tabular-nums">
-                                  {order.total.toFixed(2)} €
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          {order.notes && (
-                            <div className="w-64">
-                              <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider mb-3">
-                                Notas
-                              </p>
-                              <p className="text-sm text-zinc-400 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2">
-                                {order.notes}
-                              </p>
-                            </div>
-                          )}
-                          <div className="flex flex-col gap-2 justify-start">
-                            <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider mb-1">
-                              Acciones
-                            </p>
-                            {order.status !== "DELIVERED" &&
-                              order.status !== "CANCELLED" && (
-                                <button className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-medium rounded-lg border border-emerald-500/20 transition-colors">
-                                  Marcar como listo
-                                </button>
-                              )}
-                            {order.status !== "DELIVERED" &&
-                              order.status !== "CANCELLED" && (
-                                <button className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-medium rounded-lg border border-red-500/20 transition-colors">
-                                  Cancelar pedido
-                                </button>
-                              )}
-                            <button className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium rounded-lg border border-zinc-700 transition-colors">
-                              Imprimir ticket
-                            </button>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </>
-              ))
-            ) : (
-              <tr>
-                <td
-                  colSpan={8}
-                  className="px-5 py-12 text-center text-zinc-500 text-sm"
-                >
-                  {search
-                    ? `No se encontraron pedidos para «${search}».`
-                    : "No hay pedidos aún."}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <p className="text-xs text-zinc-600 mt-3">
+      <p className="text-xs text-zinc-600 mt-4">
         {filtered.length} resultado{filtered.length !== 1 ? "s" : ""}
         {activeStatus !== "Todos" && (
-          <span className="ml-2 text-teal-500/60">
-            · filtrado por {statusLabel[activeStatus as OrderStatus]}
+          <span className="ml-2 text-teal-700/70 dark:text-teal-500/60">
+            · filtrado por {STATUS_LABEL[activeStatus as OrderStatus]}
           </span>
         )}
       </p>
+
+      {cancelConfirm && (
+        <ConfirmDialog
+          title="¿Cancelar pedido?"
+          message={
+            <>
+              Se cancelará el pedido de la{" "}
+              <span className="text-zinc-700 dark:text-zinc-300 font-medium">
+                Mesa {cancelConfirm.tableNumber}
+              </span>{" "}
+              (#{cancelConfirm.id}). Esta acción no se puede deshacer.
+            </>
+          }
+          confirmLabel="Cancelar pedido"
+          cancelLabel="Volver"
+          loading={updatingId === cancelConfirm.id}
+          onConfirm={handleCancelConfirmed}
+          onCancel={() => setCancelConfirm(null)}
+        />
+      )}
+
+      {deleteConfirm && (
+        <ConfirmDialog
+          title="¿Eliminar pedido?"
+          message={
+            <>
+              Se eliminará el pedido{" "}
+              <span className="text-zinc-700 dark:text-zinc-300 font-medium">
+                #{deleteConfirm.id} (Mesa {deleteConfirm.tableNumber})
+              </span>
+              . Esta acción no se puede deshacer.
+            </>
+          }
+          confirmLabel="Eliminar pedido"
+          loading={deleting}
+          onConfirm={handleDeleteConfirmed}
+          onCancel={() => setDeleteConfirm(null)}
+        />
+      )}
     </div>
   );
 }
