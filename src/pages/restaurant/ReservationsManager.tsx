@@ -1,13 +1,15 @@
-// customer-portal/src/components/ReservationsManager.tsx
+// customer-portal/src/pages/restaurant/ReservationsManager.tsx
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   reservationsApi,
   type Reservation,
   type ReservationStatus,
-  type ReservationCreate,
 } from "../../api";
 import { useRestaurantInstance } from "../../hooks/useRestaurantInstance";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import { Icon } from "../../components/icons";
+import { getErrorMessage } from "../../utils/errors";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -65,244 +67,6 @@ function isSameDay(iso: string, ref: Date): boolean {
     d.getFullYear() === ref.getFullYear() &&
     d.getMonth() === ref.getMonth() &&
     d.getDate() === ref.getDate()
-  );
-}
-
-function getErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
-
-/** Convert a local date string (YYYY-MM-DD) + time string (HH:MM) to ISO 8601 */
-function toIso(date: string, time: string): string {
-  return new Date(`${date}T${time}:00`).toISOString();
-}
-
-/** Convert an ISO date to YYYY-MM-DD for <input type="date"> */
-function isoToDateInput(iso: string): string {
-  return iso.split("T")[0];
-}
-
-/** Convert an ISO date to HH:MM for <input type="time"> */
-function isoToTimeInput(iso: string): string {
-  const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
-
-// ─── Form state ───────────────────────────────────────────────────────────────
-
-type FormFields = {
-  customerName: string;
-  customerPhone: string;
-  customerEmail: string;
-  date: string;
-  time: string;
-  guests: string;
-  notes: string;
-};
-
-const EMPTY_FORM: FormFields = {
-  customerName: "",
-  customerPhone: "",
-  customerEmail: "",
-  date: "",
-  time: "",
-  guests: "",
-  notes: "",
-};
-
-// ─── Modal ────────────────────────────────────────────────────────────────────
-
-type ModalMode = "create" | "edit";
-
-interface ModalProps {
-  mode: ModalMode;
-  initial: FormFields;
-  saving: boolean;
-  error: string | null;
-  onSubmit: (f: FormFields) => void;
-  onClose: () => void;
-}
-
-function ReservationModal({
-  mode,
-  initial,
-  saving,
-  error,
-  onSubmit,
-  onClose,
-}: ModalProps) {
-  const [form, setForm] = useState<FormFields>(initial);
-
-  const set =
-    (key: keyof FormFields) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-      setForm((f) => ({ ...f, [key]: e.target.value }));
-
-  const handleSubmit = () => {
-    onSubmit(form);
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl w-full max-w-md mx-4 shadow-lg">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-zinc-200 dark:border-zinc-800">
-          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-            {mode === "create" ? "Nueva reserva" : "Editar reserva"}
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-1.5 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
-          >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="px-6 py-5 space-y-4">
-          {error && (
-            <p className="text-sm text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-lg px-3 py-2">
-              {error}
-            </p>
-          )}
-
-          {/* Name */}
-          <div>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">
-              Nombre completo{" "}
-              <span className="text-red-700 dark:text-red-400">*</span>
-            </label>
-            <input
-              type="text"
-              value={form.customerName}
-              onChange={set("customerName")}
-              placeholder="John Smith"
-              className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-800 dark:text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/30 transition-colors"
-            />
-          </div>
-
-          {/* Phone */}
-          <div>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">
-              Teléfono <span className="text-red-700 dark:text-red-400">*</span>
-            </label>
-            <input
-              type="tel"
-              value={form.customerPhone}
-              onChange={set("customerPhone")}
-              placeholder="+34 666 111 222"
-              className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-800 dark:text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/30 transition-colors"
-            />
-          </div>
-
-          {/* Email */}
-          <div>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">
-              Email{" "}
-              <span className="text-zinc-600 font-normal">(opcional)</span>
-            </label>
-            <input
-              type="email"
-              value={form.customerEmail}
-              onChange={set("customerEmail")}
-              placeholder="john@example.com"
-              className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-800 dark:text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/30 transition-colors"
-            />
-          </div>
-
-          {/* Date + Time row */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">
-                Fecha <span className="text-red-700 dark:text-red-400">*</span>
-              </label>
-              <input
-                type="date"
-                value={form.date}
-                onChange={set("date")}
-                className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/30 transition-colors"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">
-                Hora <span className="text-red-700 dark:text-red-400">*</span>
-              </label>
-              <input
-                type="time"
-                value={form.time}
-                onChange={set("time")}
-                className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/30 transition-colors"
-              />
-            </div>
-          </div>
-
-          {/* Guests */}
-          <div>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">
-              Comensales{" "}
-              <span className="text-red-700 dark:text-red-400">*</span>
-            </label>
-            <input
-              type="number"
-              min={1}
-              max={99}
-              value={form.guests}
-              onChange={set("guests")}
-              placeholder="2"
-              className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-800 dark:text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/30 transition-colors"
-            />
-          </div>
-
-          {/* Notes */}
-          <div>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">
-              Notas{" "}
-              <span className="text-zinc-600 font-normal">(opcional)</span>
-            </label>
-            <textarea
-              value={form.notes}
-              onChange={set("notes")}
-              rows={3}
-              placeholder="Outdoor seating preferred…"
-              className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-800 dark:text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/30 transition-colors resize-none"
-            />
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="flex justify-end gap-2 px-6 py-4 border-t border-zinc-200 dark:border-zinc-800">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={saving}
-            className="px-4 py-2 text-sm font-medium bg-teal-600 hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
-          >
-            {saving
-              ? "Guardando…"
-              : mode === "create"
-                ? "Crear reserva"
-                : "Guardar cambios"}
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -369,19 +133,7 @@ function ReservationCard({
           </p>
         </div>
         <div className="flex items-center gap-1.5 text-zinc-700 dark:text-zinc-300">
-          <svg
-            className="w-4 h-4 text-zinc-500"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"
-            />
-          </svg>
+          <Icon name="users" className="w-4 h-4 text-zinc-500" />
           <span className="font-semibold">{r.guests}</span>
         </div>
       </div>
@@ -438,38 +190,14 @@ function ReservationCard({
             title="Editar reserva"
             className="p-3 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors"
           >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.8}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"
-              />
-            </svg>
+            <Icon name="pencil" className="w-5 h-5" strokeWidth={1.8} />
           </button>
           <button
             onClick={onDelete}
             title="Eliminar reserva"
             className="p-3 text-zinc-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded-xl transition-colors"
           >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.8}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
-              />
-            </svg>
+            <Icon name="trash" className="w-5 h-5" strokeWidth={1.8} />
           </button>
         </div>
       </div>
@@ -482,6 +210,8 @@ function ReservationCard({
 export default function ReservationsManager() {
   const instance = useRestaurantInstance();
   const id = instance?.id ?? 0;
+  const slug = instance?.slug ?? "";
+  const navigate = useNavigate();
 
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -495,14 +225,6 @@ export default function ReservationsManager() {
   const [dateFilter, setDateFilter] = useState<"hoy" | "mañana" | "todos">(
     "hoy",
   );
-
-  // Modal state
-  const [modalMode, setModalMode] = useState<ModalMode>("create");
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalInitial, setModalInitial] = useState<FormFields>(EMPTY_FORM);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [modalError, setModalError] = useState<string | null>(null);
 
   // Status update in progress
   const [updatingId, setUpdatingId] = useState<number | null>(null);
@@ -619,77 +341,6 @@ export default function ReservationsManager() {
     }
   };
 
-  // ── Create ────────────────────────────────────────────────────────────────
-
-  const openCreate = () => {
-    setModalMode("create");
-    setModalInitial(EMPTY_FORM);
-    setEditingId(null);
-    setModalError(null);
-    setModalOpen(true);
-  };
-
-  // ── Edit ──────────────────────────────────────────────────────────────────
-
-  const openEdit = (r: Reservation) => {
-    setModalMode("edit");
-    setModalInitial({
-      customerName: r.customerName,
-      customerPhone: r.customerPhone,
-      customerEmail: r.customerEmail,
-      date: isoToDateInput(r.reservationDate),
-      time: isoToTimeInput(r.reservationDate),
-      guests: String(r.guests),
-      notes: r.notes,
-    });
-    setEditingId(r.id);
-    setModalError(null);
-    setModalOpen(true);
-  };
-
-  // ── Submit ────────────────────────────────────────────────────────────────
-
-  const handleModalSubmit = async (form: FormFields) => {
-    if (
-      !form.customerName ||
-      !form.customerPhone ||
-      !form.date ||
-      !form.time ||
-      !form.guests
-    ) {
-      setModalError("Por favor completa los campos obligatorios.");
-      return;
-    }
-
-    const payload: ReservationCreate = {
-      customerName: form.customerName,
-      customerPhone: form.customerPhone,
-      customerEmail: form.customerEmail || undefined,
-      reservationDate: toIso(form.date, form.time),
-      guests: Number(form.guests),
-      notes: form.notes || undefined,
-    };
-
-    setSaving(true);
-    setModalError(null);
-    try {
-      if (modalMode === "create") {
-        const created = await reservationsApi.create(id, payload);
-        setReservations((prev) => [created, ...prev]);
-      } else if (editingId !== null) {
-        const updated = await reservationsApi.update(editingId, payload);
-        setReservations((prev) =>
-          prev.map((x) => (x.id === updated.id ? updated : x)),
-        );
-      }
-      setModalOpen(false);
-    } catch (e: unknown) {
-      setModalError(getErrorMessage(e, "Error al guardar la reserva"));
-    } finally {
-      setSaving(false);
-    }
-  };
-
   // ── Delete ────────────────────────────────────────────────────────────────
 
   const handleDelete = async () => {
@@ -720,18 +371,6 @@ export default function ReservationsManager() {
 
   return (
     <div className="px-6 lg:px-8 py-6 w-full">
-      {/* Modal */}
-      {modalOpen && (
-        <ReservationModal
-          mode={modalMode}
-          initial={modalInitial}
-          saving={saving}
-          error={modalError}
-          onSubmit={handleModalSubmit}
-          onClose={() => setModalOpen(false)}
-        />
-      )}
-
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -744,22 +383,10 @@ export default function ReservationsManager() {
           </p>
         </div>
         <button
-          onClick={openCreate}
+          onClick={() => navigate(`/restaurant/${slug}/reservations/new`)}
           className="flex items-center gap-2 px-5 py-3 bg-teal-600 hover:bg-teal-500 text-white text-base font-bold rounded-xl transition-colors"
         >
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 4.5v15m7.5-7.5h-15"
-            />
-          </svg>
+          <Icon name="plus" className="w-5 h-5" />
           Nueva reserva
         </button>
       </div>
@@ -812,19 +439,10 @@ export default function ReservationsManager() {
       {/* Filters row */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
         <div className="relative flex-1 min-w-56">
-          <svg
+          <Icon
+            name="search"
             className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
-            />
-          </svg>
+          />
           <input
             type="text"
             placeholder="Buscar por nombre, teléfono o email…"
@@ -887,7 +505,9 @@ export default function ReservationsManager() {
               tomorrow={tomorrow}
               updating={updatingId === r.id}
               onStatusChange={(status) => requestStatusChange(r, status)}
-              onEdit={() => openEdit(r)}
+              onEdit={() =>
+                navigate(`/restaurant/${slug}/reservations/${r.id}`)
+              }
               onDelete={() => setDeleteConfirm(r)}
             />
           ))}

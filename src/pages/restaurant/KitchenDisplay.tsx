@@ -356,7 +356,7 @@ export default function KitchenDisplay() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950">
+    <div className="h-screen flex flex-col bg-zinc-50 dark:bg-zinc-900">
       {/* Cabecera */}
       <div className="shrink-0 flex items-center justify-between px-6 lg:px-8 py-6 border-b border-zinc-200 dark:border-zinc-800">
         <div>

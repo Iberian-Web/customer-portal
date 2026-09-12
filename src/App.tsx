@@ -5,34 +5,19 @@ import Login from "./pages/Login";
 import Home from "./pages/Home";
 import NotFound from "./pages/NotFound";
 import MenuManager from "./pages/restaurant/MenuManager";
+import DishForm from "./pages/restaurant/DishForm";
 import OrdersManager from "./pages/restaurant/OrdersManager";
 import OrderForm from "./pages/restaurant/OrderForm";
 import KitchenDisplay from "./pages/restaurant/KitchenDisplay";
 import ReservationsManager from "./pages/restaurant/ReservationsManager";
+import ReservationForm from "./pages/restaurant/ReservationForm";
 import { useAuth } from "./auth/useAuth";
+import { Spinner } from "./components/icons";
 
 function LoadingScreen() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <svg
-        className="w-5 h-5 text-zinc-600 animate-spin"
-        fill="none"
-        viewBox="0 0 24 24"
-      >
-        <circle
-          className="opacity-25"
-          cx="12"
-          cy="12"
-          r="10"
-          stroke="currentColor"
-          strokeWidth="4"
-        />
-        <path
-          className="opacity-75"
-          fill="currentColor"
-          d="M4 12a8 8 0 018-8v8H4z"
-        />
-      </svg>
+      <Spinner className="w-5 h-5 text-zinc-600" />
     </div>
   );
 }
@@ -65,6 +50,14 @@ export default function App() {
             element={<MenuManager />}
           />
           <Route
+            path="/restaurant/:companySlug/menu/dishes/new"
+            element={<DishForm />}
+          />
+          <Route
+            path="/restaurant/:companySlug/menu/dishes/:dishId"
+            element={<DishForm />}
+          />
+          <Route
             path="/restaurant/:companySlug/orders"
             element={<OrdersManager />}
           />
@@ -83,6 +76,14 @@ export default function App() {
           <Route
             path="/restaurant/:companySlug/reservations"
             element={<ReservationsManager />}
+          />
+          <Route
+            path="/restaurant/:companySlug/reservations/new"
+            element={<ReservationForm />}
+          />
+          <Route
+            path="/restaurant/:companySlug/reservations/:reservationId"
+            element={<ReservationForm />}
           />
         </Route>
         <Route path="*" element={<NotFound />} />

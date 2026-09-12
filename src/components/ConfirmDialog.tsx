@@ -1,9 +1,9 @@
 // customer-portal/src/components/ConfirmDialog.tsx
 //
 // Diálogo de confirmación compartido por toda la app (pedidos, reservas,
-// carta...). Sustituye a los `window.confirm()`/`alert()` del navegador y a
-// las variantes que antes se repetían copiadas en cada página, para que
-// eliminar, cancelar o confirmar algo se vea y se comporte siempre igual.
+// carta...). Sustituye a los `window.confirm()`/`alert()` del navegador para
+// que eliminar, cancelar o confirmar algo se vea y se comporte siempre igual.
+import { Spinner } from "./icons";
 
 export type ConfirmDialogTone = "danger" | "warning" | "default";
 
@@ -14,30 +14,6 @@ const CONFIRM_BUTTON_STYLES: Record<ConfirmDialogTone, string> = {
     "bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20",
   default: "bg-teal-600 hover:bg-teal-500 text-white border border-transparent",
 };
-
-function Spinner({ className = "w-3.5 h-3.5" }: { className?: string }) {
-  return (
-    <svg
-      className={`${className} animate-spin`}
-      fill="none"
-      viewBox="0 0 24 24"
-    >
-      <circle
-        className="opacity-25"
-        cx="12"
-        cy="12"
-        r="10"
-        stroke="currentColor"
-        strokeWidth="4"
-      />
-      <path
-        className="opacity-75"
-        fill="currentColor"
-        d="M4 12a8 8 0 018-8v8H4z"
-      />
-    </svg>
-  );
-}
 
 export default function ConfirmDialog({
   title,

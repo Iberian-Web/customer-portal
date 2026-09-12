@@ -5,6 +5,9 @@ import type { Instance } from "../api";
 import { useAuth } from "../auth/useAuth";
 import { slugify } from "../utils/slug";
 import ThemeToggle from "./ThemeToggle";
+import { Icon } from "./icons";
+
+const SIDEBAR_COLLAPSED_KEY = "sidebarCollapsed";
 
 // ─── Service → route/icon registry ───────────────────────────────────────────
 type NavEntry = {
@@ -137,27 +140,51 @@ function SidebarContent({
   loading,
   sections,
   companyName,
+  waiterName,
   onLinkClick,
   handleLogout,
+  collapsed,
+  onToggleCollapse,
 }: {
   loading: boolean;
   sections: Array<{ sectionLabel: string; items: NavEntry[] }>;
   companyName: string;
+  waiterName?: string;
   onLinkClick?: () => void;
   handleLogout: () => void;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }) {
   return (
     <>
       {/* Header / Company Name */}
       <div className="h-16 flex items-center justify-between gap-2 px-5 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
-        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate">
-          {companyName}
-        </span>
-        <ThemeToggle className="shrink-0" />
+        {!collapsed && (
+          <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate">
+            {companyName}
+          </span>
+        )}
+        <div
+          className={`flex items-center gap-1 ${collapsed ? "mx-auto" : "ml-auto"}`}
+        >
+          {!collapsed && <ThemeToggle className="shrink-0" />}
+          {onToggleCollapse && (
+            <button
+              onClick={onToggleCollapse}
+              className="hidden md:flex w-8 h-8 items-center justify-center text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors shrink-0"
+              title={collapsed ? "Expandir menú" : "Colapsar menú"}
+            >
+              <Icon
+                name="arrowLeft"
+                className={`w-4 h-4 transition-transform duration-200 ${collapsed ? "rotate-180" : ""}`}
+              />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-4 overflow-y-auto">
+      <nav className="flex-1 px-3 py-4 space-y-4 overflow-y-auto overflow-x-hidden">
         {loading ? (
           <div className="space-y-2 px-2">
             {[1, 2, 3].map((i) => (
@@ -168,15 +195,19 @@ function SidebarContent({
             ))}
           </div>
         ) : sections.length === 0 ? (
-          <p className="text-xs text-zinc-600 px-2">
-            No tienes servicios activos.
-          </p>
+          !collapsed && (
+            <p className="text-xs text-zinc-600 px-2">
+              No tienes servicios activos.
+            </p>
+          )
         ) : (
           sections.map(({ sectionLabel, items }) => (
             <div key={sectionLabel}>
-              <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest px-2 mb-2">
-                {sectionLabel}
-              </p>
+              {!collapsed && (
+                <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest px-2 mb-2">
+                  {sectionLabel}
+                </p>
+              )}
               <div className="space-y-1">
                 {items.map(({ to, label, icon }) => (
                   <NavLink
@@ -184,8 +215,9 @@ function SidebarContent({
                     to={to}
                     end
                     onClick={onLinkClick}
+                    title={collapsed ? label : undefined}
                     className={({ isActive }) =>
-                      `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${collapsed ? "justify-center" : ""} ${
                         isActive
                           ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
                           : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800/60"
@@ -193,7 +225,7 @@ function SidebarContent({
                     }
                   >
                     {icon}
-                    {label}
+                    {!collapsed && label}
                   </NavLink>
                 ))}
               </div>
@@ -203,13 +235,23 @@ function SidebarContent({
       </nav>
 
       {/* Session actions */}
-      <div className="px-3 py-3 border-t border-zinc-200 dark:border-zinc-800 shrink-0">
+      <div className="px-3 py-3 border-t border-zinc-200 dark:border-zinc-800 shrink-0 space-y-2">
+        {collapsed && <ThemeToggle className="mx-auto" />}
+        {waiterName && !collapsed && (
+          <p
+            className="px-3 text-xs font-medium text-zinc-600 dark:text-zinc-400 truncate"
+            title={waiterName}
+          >
+            {waiterName}
+          </p>
+        )}
         <button
           onClick={handleLogout}
-          className="w-full px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 rounded-lg transition-colors text-left flex items-center gap-2.5"
+          title={collapsed ? "Cerrar sesión" : undefined}
+          className={`w-full px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 rounded-lg transition-colors text-left flex items-center gap-2.5 ${collapsed ? "justify-center" : ""}`}
         >
           <svg
-            className="w-4 h-4"
+            className="w-4 h-4 shrink-0"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -221,7 +263,7 @@ function SidebarContent({
               d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9"
             />
           </svg>
-          Cerrar sesión
+          {!collapsed && "Cerrar sesión"}
         </button>
       </div>
     </>
@@ -234,6 +276,17 @@ export default function Sidebar() {
   const navigate = useNavigate();
 
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1",
+  );
+
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? "1" : "0");
+      return next;
+    });
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -293,28 +346,36 @@ export default function Sidebar() {
         />
       )}
 
-      {/* ── Mobile drawer ───────────────────────────────────────────────────── */}
+      {/* ── Mobile drawer (opens from top, full width, auto height) ─────────── */}
       <div
-        className={`md:hidden fixed top-0 left-0 z-50 h-full w-64 bg-white dark:bg-zinc-900 flex flex-col transform transition-transform duration-300 ease-in-out ${
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        className={`md:hidden fixed top-0 left-0 right-0 z-50 w-full max-h-[85vh] bg-white dark:bg-zinc-900 flex flex-col rounded-b-2xl shadow-xl overflow-hidden transform origin-top transition-transform duration-300 ease-in-out ${
+          mobileOpen ? "translate-y-0" : "-translate-y-full"
         }`}
       >
         <SidebarContent
           loading={isLoading}
           sections={sections}
           companyName={companyName}
+          waiterName={access?.waiterName}
           onLinkClick={closeDrawer}
           handleLogout={handleLogout}
         />
       </div>
 
       {/* ── Desktop sidebar ─────────────────────────────────────────────────── */}
-      <aside className="hidden md:flex w-56 shrink-0 bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex-col h-screen sticky top-0">
+      <aside
+        className={`hidden md:flex shrink-0 bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex-col h-screen sticky top-0 transition-all duration-200 ${
+          collapsed ? "w-18" : "w-56"
+        }`}
+      >
         <SidebarContent
           loading={isLoading}
           sections={sections}
           companyName={companyName}
+          waiterName={access?.waiterName}
           handleLogout={handleLogout}
+          collapsed={collapsed}
+          onToggleCollapse={toggleCollapsed}
         />
       </aside>
     </>
