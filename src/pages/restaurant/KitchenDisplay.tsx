@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { ordersApi, type Order, type OrderStatus } from "../../api";
 import { useRestaurantInstance } from "../../hooks/useRestaurantInstance";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import { getErrorMessage } from "../../utils/errors";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -67,10 +68,6 @@ const NEXT_ACTION: Partial<
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function getErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
 
 function elapsedMinutes(iso: string, now: number): number {
   return Math.max(0, Math.floor((now - new Date(iso).getTime()) / 60000));

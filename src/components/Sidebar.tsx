@@ -108,6 +108,27 @@ const SERVICE_ROUTE_MAP: Record<string, (slug: string) => NavEntry[]> = {
       ),
     },
   ],
+  Analíticas: (slug) => [
+    {
+      label: "Analíticas",
+      to: `/restaurant/${slug}/analytics`,
+      icon: (
+        <svg
+          className={iconClass}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={1.8}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M3 3v16.5A1.5 1.5 0 004.5 21H21M7.5 15.75V9M12.75 15.75V6M18 15.75V12"
+          />
+        </svg>
+      ),
+    },
+  ],
 };
 
 const APP_SECTION_LABEL: Record<string, string> = {
@@ -117,6 +138,7 @@ const APP_SECTION_LABEL: Record<string, string> = {
 function buildNavSections(
   instances: Instance[],
   companySlug: string,
+  disabledServiceIds: number[],
 ): Array<{
   sectionLabel: string;
   items: NavEntry[];
@@ -126,7 +148,7 @@ function buildNavSections(
       const appName = inst.application.name;
       const sectionLabel = APP_SECTION_LABEL[appName] ?? appName;
       const items = inst.instanceServices
-        .filter((is) => is.active)
+        .filter((is) => is.active && !disabledServiceIds.includes(is.serviceId))
         .flatMap(
           (is) => SERVICE_ROUTE_MAP[is.service.name]?.(companySlug) ?? [],
         );
@@ -294,7 +316,11 @@ export default function Sidebar() {
   };
 
   const sections = access
-    ? buildNavSections(access.instances, slugify(access.company || access.name))
+    ? buildNavSections(
+        access.instances,
+        slugify(access.company || access.name),
+        access.disabledServiceIds,
+      )
     : [];
   const companyName = user?.company || user?.name || "Mi Empresa";
 

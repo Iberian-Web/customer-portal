@@ -11,6 +11,7 @@ import OrderForm from "./pages/restaurant/OrderForm";
 import KitchenDisplay from "./pages/restaurant/KitchenDisplay";
 import ReservationsManager from "./pages/restaurant/ReservationsManager";
 import ReservationForm from "./pages/restaurant/ReservationForm";
+import Analytics from "./pages/restaurant/Analytics";
 import { useAuth } from "./auth/useAuth";
 import { Spinner } from "./components/icons";
 
@@ -84,6 +85,10 @@ export default function App() {
           <Route
             path="/restaurant/:companySlug/reservations/:reservationId"
             element={<ReservationForm />}
+          />
+          <Route
+            path="/restaurant/:companySlug/analytics"
+            element={<Analytics />}
           />
         </Route>
         <Route path="*" element={<NotFound />} />

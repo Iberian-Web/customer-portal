@@ -110,6 +110,10 @@ export type MyAccess = User & {
   // la sesión). Úsalo para asociar pedidos a la persona que ha iniciado
   // sesión sin pedírselo en ningún formulario.
   waiterName: string;
+  // IDs de servicio ocultos específicamente para el usuario autenticado
+  // (independientemente de si el cliente los tiene activos). El sidebar
+  // debe excluirlos aunque `instanceServices` los marque como activos.
+  disabledServiceIds: number[];
 };
 
 export type Dish = {
@@ -207,10 +211,34 @@ export type OrderUpdate = Partial<
   Omit<OrderCreate, "items"> & { status: OrderStatus; items: OrderItemInput[] }
 >;
 
+export type AnalyticsSummary = {
+  revenue: { total: number; averageOrderValue: number };
+  orders: {
+    total: number;
+    byStatus: Record<OrderStatus, number>;
+    dailySeries: { date: string; orders: number; revenue: number }[];
+  };
+  topDishes: { name: string; quantity: number; revenue: number }[];
+  reservations: {
+    total: number;
+    byStatus: Record<ReservationStatus, number>;
+    upcoming: number;
+    totalGuests: number;
+    noShowRate: number;
+  };
+};
+
 // ─── Portal endpoints ─────────────────────────────────────────────────────────
 
 export const portalApi = {
   myAccess: () => request<MyAccess>("/api/portal/my-access"),
+};
+
+// ─── Analytics endpoints ──────────────────────────────────────────────────────
+
+export const analyticsApi = {
+  get: (instanceId: number) =>
+    request<AnalyticsSummary>(`/api/instances/${instanceId}/analytics`),
 };
 
 // ─── Menu endpoints ───────────────────────────────────────────────────────────

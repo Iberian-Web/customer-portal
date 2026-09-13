@@ -5,7 +5,6 @@ import {
   ordersApi,
   menusApi,
   type Order,
-  type OrderStatus,
   type OrderCreate,
   type Menu,
 } from "../../api";
@@ -22,38 +21,15 @@ import {
   FormPageSkeleton,
 } from "../../components/FormPage";
 import { getErrorMessage } from "../../utils/errors";
+import { money } from "../../utils/format";
+import { STATUS_LABEL, STATUS_STYLES } from "../../utils/orderStatus";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
-
-const STATUS_LABEL: Record<OrderStatus, string> = {
-  PENDING: "Nuevo · sin enviar",
-  IN_PROGRESS: "En cocina",
-  READY: "Listo",
-  DELIVERED: "Entregado",
-  CANCELLED: "Cancelado",
-};
-
-const STATUS_STYLES: Record<OrderStatus, string> = {
-  PENDING:
-    "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 ring-1 ring-amber-200 dark:ring-amber-500/20",
-  IN_PROGRESS:
-    "bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 ring-1 ring-blue-200 dark:ring-blue-500/20",
-  READY:
-    "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-200 dark:ring-emerald-500/20",
-  DELIVERED:
-    "bg-zinc-100 dark:bg-zinc-700/40 text-zinc-600 dark:text-zinc-400 ring-1 ring-zinc-300 dark:ring-zinc-600/30",
-  CANCELLED:
-    "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 ring-1 ring-red-200 dark:ring-red-500/20",
-};
 
 // Sentinel para "todas las categorías" en el filtro de la carta.
 const ALL_CATEGORIES = "__TODOS__";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function money(n: number): string {
-  return `${n.toFixed(2)} €`;
-}
 
 let itemKeySeq = 0;
 function newItemKey() {
@@ -492,7 +468,7 @@ export default function OrderForm() {
                         key={dish.id}
                         type="button"
                         onClick={() => handleAddDish(dish.name, dish.price)}
-                        className="flex flex-col items-start gap-2 px-4 py-4 min-h-[5.5rem] bg-zinc-50 dark:bg-zinc-950/50 hover:bg-teal-50 dark:hover:bg-teal-500/10 active:bg-teal-500/20 border border-zinc-200 dark:border-zinc-800 hover:border-teal-400 dark:hover:border-teal-500/50 rounded-2xl text-left transition-colors"
+                        className="flex flex-col items-start gap-2 px-4 py-4 min-h-22 bg-zinc-50 dark:bg-zinc-950/50 hover:bg-teal-50 dark:hover:bg-teal-500/10 active:bg-teal-500/20 border border-zinc-200 dark:border-zinc-800 hover:border-teal-400 dark:hover:border-teal-500/50 rounded-2xl text-left transition-colors"
                       >
                         <span className="text-base text-zinc-900 dark:text-zinc-100 font-semibold leading-snug line-clamp-2">
                           {dish.name}
@@ -577,7 +553,7 @@ export default function OrderForm() {
           </div>
 
           {/* Pedido en curso: fijo al lado, siempre visible */}
-          <div className="w-full lg:w-[26rem] shrink-0 lg:sticky lg:top-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 flex flex-col gap-4 lg:max-h-[calc(100vh-3rem)]">
+          <div className="w-full lg:w-104 shrink-0 lg:sticky lg:top-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 flex flex-col gap-4 lg:max-h-[calc(100vh-3rem)]">
             <SectionTitle>Pedido en curso</SectionTitle>
 
             <div className="flex-1 overflow-y-auto -mr-1 pr-1 min-h-16">

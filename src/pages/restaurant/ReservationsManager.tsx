@@ -10,6 +10,7 @@ import { useRestaurantInstance } from "../../hooks/useRestaurantInstance";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { Icon } from "../../components/icons";
 import { getErrorMessage } from "../../utils/errors";
+import { toLocalTimeString } from "../../utils/format";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -54,11 +55,6 @@ function toLocalDateString(iso: string): string {
     month: "2-digit",
     year: "numeric",
   });
-}
-
-function toLocalTimeString(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
 }
 
 function isSameDay(iso: string, ref: Date): boolean {
