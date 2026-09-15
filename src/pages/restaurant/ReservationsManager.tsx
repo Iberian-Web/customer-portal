@@ -1,5 +1,6 @@
 // customer-portal/src/pages/restaurant/ReservationsManager.tsx
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
   reservationsApi,
@@ -208,10 +209,7 @@ export default function ReservationsManager() {
   const id = instance?.id ?? 0;
   const slug = instance?.slug ?? "";
   const navigate = useNavigate();
-
-  const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   // UI state
   const [search, setSearch] = useState("");
@@ -221,9 +219,6 @@ export default function ReservationsManager() {
   const [dateFilter, setDateFilter] = useState<"hoy" | "mañana" | "todos">(
     "hoy",
   );
-
-  // Status update in progress
-  const [updatingId, setUpdatingId] = useState<number | null>(null);
 
   // Confirmaciones pendientes, en vez de window.confirm(): cancelar y marcar
   // "no presentado" son difíciles de deshacer, igual que eliminar.
@@ -235,25 +230,19 @@ export default function ReservationsManager() {
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await reservationsApi.list(id);
-      setReservations(data);
-    } catch (e: unknown) {
-      setError(getErrorMessage(e, "Error al cargar reservas"));
-    } finally {
-      setLoading(false);
-    }
-  }, [id]);
-
-  useEffect(() => {
-    const run = async () => {
-      await load();
-    };
-    void run();
-  }, [load]);
+  const {
+    data: reservations = [],
+    isLoading: loading,
+    error: queryError,
+    refetch,
+  } = useQuery({
+    queryKey: ["reservations", id],
+    queryFn: () => reservationsApi.list(id),
+    enabled: !!id,
+  });
+  const error = queryError
+    ? getErrorMessage(queryError, "Error al cargar reservas")
+    : null;
 
   // ── Date helpers ──────────────────────────────────────────────────────────
 
@@ -305,22 +294,24 @@ export default function ReservationsManager() {
 
   // ── Status update ─────────────────────────────────────────────────────────
 
-  const handleStatusChange = async (
-    r: Reservation,
-    newStatus: ReservationStatus,
-  ) => {
-    setUpdatingId(r.id);
-    try {
-      const updated = await reservationsApi.updateStatus(r.id, newStatus);
-      setReservations((prev) =>
-        prev.map((x) => (x.id === updated.id ? updated : x)),
-      );
+  const statusMutation = useMutation({
+    mutationFn: ({
+      reservationId,
+      status,
+    }: {
+      reservationId: number;
+      status: ReservationStatus;
+    }) => reservationsApi.updateStatus(reservationId, status),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["reservations", id] });
       setStatusConfirm(null);
-    } catch (e: unknown) {
-      alert(getErrorMessage(e, "Error al actualizar estado"));
-    } finally {
-      setUpdatingId(null);
-    }
+    },
+    onError: (e: unknown) =>
+      alert(getErrorMessage(e, "Error al actualizar estado")),
+  });
+
+  const handleStatusChange = (r: Reservation, newStatus: ReservationStatus) => {
+    statusMutation.mutate({ reservationId: r.id, status: newStatus });
   };
 
   // "Confirmar" y "Completada" son acciones positivas y se aplican al
@@ -333,21 +324,24 @@ export default function ReservationsManager() {
     if (newStatus === "CANCELLED" || newStatus === "NO_SHOW") {
       setStatusConfirm({ reservation: r, status: newStatus });
     } else {
-      void handleStatusChange(r, newStatus);
+      handleStatusChange(r, newStatus);
     }
   };
 
   // ── Delete ────────────────────────────────────────────────────────────────
 
-  const handleDelete = async () => {
-    if (!deleteConfirm) return;
-    try {
-      await reservationsApi.remove(deleteConfirm.id);
-      setReservations((prev) => prev.filter((x) => x.id !== deleteConfirm.id));
+  const deleteMutation = useMutation({
+    mutationFn: (reservationId: number) =>
+      reservationsApi.remove(reservationId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["reservations", id] });
       setDeleteConfirm(null);
-    } catch (e: unknown) {
-      alert(getErrorMessage(e, "Error al eliminar"));
-    }
+    },
+    onError: (e: unknown) => alert(getErrorMessage(e, "Error al eliminar")),
+  });
+
+  const handleDelete = () => {
+    if (deleteConfirm) deleteMutation.mutate(deleteConfirm.id);
   };
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -357,7 +351,10 @@ export default function ReservationsManager() {
       <div className="px-6 lg:px-8 py-6 w-full">
         <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl px-5 py-4 text-sm text-red-700 dark:text-red-400">
           {error}
-          <button onClick={load} className="ml-4 underline hover:no-underline">
+          <button
+            onClick={() => void refetch()}
+            className="ml-4 underline hover:no-underline"
+          >
             Reintentar
           </button>
         </div>
@@ -499,7 +496,10 @@ export default function ReservationsManager() {
               r={r}
               today={today}
               tomorrow={tomorrow}
-              updating={updatingId === r.id}
+              updating={
+                statusMutation.isPending &&
+                statusMutation.variables?.reservationId === r.id
+              }
               onStatusChange={(status) => requestStatusChange(r, status)}
               onEdit={() =>
                 navigate(`/restaurant/${slug}/reservations/${r.id}`)
@@ -551,12 +551,13 @@ export default function ReservationsManager() {
           }
           cancelLabel="Volver"
           tone={statusConfirm.status === "CANCELLED" ? "danger" : "warning"}
-          loading={updatingId === statusConfirm.reservation.id}
+          loading={
+            statusMutation.isPending &&
+            statusMutation.variables?.reservationId ===
+              statusConfirm.reservation.id
+          }
           onConfirm={() =>
-            void handleStatusChange(
-              statusConfirm.reservation,
-              statusConfirm.status,
-            )
+            handleStatusChange(statusConfirm.reservation, statusConfirm.status)
           }
           onCancel={() => setStatusConfirm(null)}
         />
@@ -575,6 +576,7 @@ export default function ReservationsManager() {
             </>
           }
           confirmLabel="Eliminar reserva"
+          loading={deleteMutation.isPending}
           onConfirm={handleDelete}
           onCancel={() => setDeleteConfirm(null)}
         />

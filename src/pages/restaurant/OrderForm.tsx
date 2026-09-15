@@ -1,5 +1,6 @@
 // customer-portal/src/pages/restaurant/OrderForm.tsx
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ordersApi,
@@ -16,10 +17,10 @@ import {
   FormPageHeader,
   SectionTitle,
   Field,
-  getInputClass,
   FormErrorBanner,
   FormPageSkeleton,
 } from "../../components/FormPage";
+import { getInputClass } from "../../utils/inputClass";
 import { getErrorMessage } from "../../utils/errors";
 import { money } from "../../utils/format";
 import { STATUS_LABEL, STATUS_STYLES } from "../../utils/orderStatus";
@@ -74,18 +75,16 @@ export default function OrderForm() {
 
   // ── Data state ──
   const [order, setOrder] = useState<Order | null>(null);
-  const [menus, setMenus] = useState<Menu[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
 
   // ── Form state ──
   const [form, setForm] = useState<FormData>(emptyForm);
   const [fieldErrors, setFieldErrors] = useState<FormErrors>({});
-  const [saving, setSaving] = useState<"save" | "send" | false>(false);
+  const [savingKind, setSavingKind] = useState<"save" | "send" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // ── Delete state ──
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deleting, setDeleting] = useState(false);
 
   // ── Dish picker state ──
   const [dishSearch, setDishSearch] = useState("");
@@ -95,51 +94,64 @@ export default function OrderForm() {
   const [customPrice, setCustomPrice] = useState("");
   const [customQty, setCustomQty] = useState("1");
 
+  const queryClient = useQueryClient();
+
   // ─ Load data ─
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [menuData, existing] = await Promise.all([
-        menusApi.list(id).catch(() => []),
-        isEdit ? ordersApi.get(Number(orderId)) : Promise.resolve(null),
-      ]);
+  const { data: menus = [], isLoading: menusLoading } = useQuery({
+    queryKey: ["menus", id],
+    queryFn: () => menusApi.list(id).catch(() => [] as Menu[]),
+    enabled: !!id,
+  });
 
-      setMenus(menuData);
+  const {
+    data: existingOrder,
+    isLoading: orderLoading,
+    error: orderQueryError,
+  } = useQuery({
+    queryKey: ["order", orderId],
+    queryFn: () => ordersApi.get(Number(orderId)),
+    enabled: isEdit,
+    retry: false,
+  });
 
-      if (existing) {
-        setOrder(existing);
-        setForm({
-          tableNumber: String(existing.tableNumber),
-          notes: existing.notes,
-          items: existing.items.map((it) => ({
-            key: newItemKey(),
-            dishName: it.dishName,
-            quantity: String(it.quantity),
-            unitPrice: String(it.unitPrice),
-          })),
-        });
-      }
-    } catch (loadError: unknown) {
-      if (
-        isEdit &&
-        loadError instanceof Error &&
-        "status" in loadError &&
-        (loadError as { status?: number }).status === 404
-      ) {
-        navigate(`/restaurant/${slug}/orders`, { replace: true });
-        return;
-      }
-      setError(getErrorMessage(loadError, "Error al cargar el pedido"));
-    } finally {
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, isEdit, orderId]);
+  const loading = menusLoading || (isEdit && (orderLoading || !initialized));
 
+  const isNotFoundError = (err: unknown) =>
+    err instanceof Error &&
+    "status" in err &&
+    (err as { status?: number }).status === 404;
+
+  // Si el pedido no existe (404), volvemos al listado — es un efecto
+  // secundario real (navegación), así que va en un efecto. Cualquier otro
+  // fallo se deriva directamente más abajo, sin pasar por estado.
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (isEdit && orderQueryError && isNotFoundError(orderQueryError)) {
+      navigate(`/restaurant/${slug}/orders`, { replace: true });
+    }
+  }, [isEdit, orderQueryError, navigate, slug]);
+
+  const loadError =
+    isEdit && orderQueryError && !isNotFoundError(orderQueryError)
+      ? getErrorMessage(orderQueryError, "Error al cargar el pedido")
+      : null;
+
+  // Siembra el formulario una sola vez, cuando llega el pedido a editar. Va
+  // en el cuerpo del render (no en un efecto): es una adaptación de estado
+  // a partir de datos ya cargados, no una sincronización con algo externo.
+  if (isEdit && !initialized && existingOrder) {
+    setInitialized(true);
+    setOrder(existingOrder);
+    setForm({
+      tableNumber: String(existingOrder.tableNumber),
+      notes: existingOrder.notes,
+      items: existingOrder.items.map((it) => ({
+        key: newItemKey(),
+        dishName: it.dishName,
+        quantity: String(it.quantity),
+        unitPrice: String(it.unitPrice),
+      })),
+    });
+  }
 
   // ── Dish picker ───────────────────────────────────────────────────────────
 
@@ -261,7 +273,36 @@ export default function OrderForm() {
    * El camarero/a NUNCA se envía desde este formulario: lo asocia el
    * backend a partir de la sesión de quien ha iniciado sesión.
    */
-  const submit = async (sendToKitchen: boolean) => {
+  const submitMutation = useMutation({
+    mutationFn: async ({
+      payload,
+      sendToKitchen,
+    }: {
+      payload: OrderCreate;
+      sendToKitchen: boolean;
+    }) => {
+      if (isEdit) {
+        await ordersApi.update(Number(orderId), payload);
+        if (sendToKitchen && order?.status === "PENDING") {
+          await ordersApi.updateStatus(Number(orderId), "IN_PROGRESS");
+        }
+      } else {
+        await ordersApi.create(id, payload);
+      }
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["orders", id] });
+      if (isEdit) {
+        void queryClient.invalidateQueries({ queryKey: ["order", orderId] });
+      }
+      goBack();
+    },
+    onError: (submitError: unknown) =>
+      setError(getErrorMessage(submitError, "Error al guardar el pedido")),
+    onSettled: () => setSavingKind(null),
+  });
+
+  const submit = (sendToKitchen: boolean) => {
     if (!validate()) return;
 
     const payload: OrderCreate = {
@@ -275,38 +316,27 @@ export default function OrderForm() {
       ...(sendToKitchen && !isEdit ? { sendToKitchen: true } : {}),
     };
 
-    setSaving(sendToKitchen ? "send" : "save");
+    setSavingKind(sendToKitchen ? "send" : "save");
     setError(null);
-    try {
-      if (isEdit) {
-        await ordersApi.update(Number(orderId), payload);
-        if (sendToKitchen && order?.status === "PENDING") {
-          await ordersApi.updateStatus(Number(orderId), "IN_PROGRESS");
-        }
-      } else {
-        await ordersApi.create(id, payload);
-      }
-      goBack();
-    } catch (submitError: unknown) {
-      setError(getErrorMessage(submitError, "Error al guardar el pedido"));
-    } finally {
-      setSaving(false);
-    }
+    submitMutation.mutate({ payload, sendToKitchen });
   };
 
   // ── Delete ────────────────────────────────────────────────────────────────
 
-  const handleDelete = async () => {
-    if (!order) return;
-    setDeleting(true);
-    try {
-      await ordersApi.remove(order.id);
+  const deleteMutation = useMutation({
+    mutationFn: () => ordersApi.remove(order!.id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["orders", id] });
       goBack();
-    } catch (deleteError: unknown) {
+    },
+    onError: (deleteError: unknown) => {
       setError(getErrorMessage(deleteError, "Error al eliminar el pedido"));
-      setDeleting(false);
       setShowDeleteConfirm(false);
-    }
+    },
+  });
+
+  const handleDelete = () => {
+    if (order) deleteMutation.mutate();
   };
 
   // Se puede "enviar a cocina" directamente si es un pedido nuevo, o si es
@@ -337,7 +367,7 @@ export default function OrderForm() {
             </>
           }
           confirmLabel="Eliminar pedido"
-          loading={deleting}
+          loading={deleteMutation.isPending}
           onConfirm={handleDelete}
           onCancel={() => setShowDeleteConfirm(false)}
         />
@@ -621,28 +651,30 @@ export default function OrderForm() {
               </p>
             )}
 
-            {error && <FormErrorBanner message={error} />}
+            {(error ?? loadError) && (
+              <FormErrorBanner message={error ?? loadError!} />
+            )}
 
             <div className="flex flex-col gap-2.5">
               {canSendToKitchen && (
                 <button
                   type="button"
-                  onClick={() => void submit(true)}
-                  disabled={!!saving}
+                  onClick={() => submit(true)}
+                  disabled={!!savingKind}
                   className="flex items-center justify-center gap-2 px-5 py-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-base font-bold rounded-xl transition-colors"
                 >
-                  {saving === "send" && <Spinner />}
-                  {saving === "send" ? "Enviando…" : "Enviar a cocina"}
+                  {savingKind === "send" && <Spinner />}
+                  {savingKind === "send" ? "Enviando…" : "Enviar a cocina"}
                 </button>
               )}
               <button
                 type="button"
-                onClick={() => void submit(false)}
-                disabled={!!saving}
+                onClick={() => submit(false)}
+                disabled={!!savingKind}
                 className="flex items-center justify-center gap-2 px-5 py-4 bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white text-base font-semibold rounded-xl transition-colors"
               >
-                {saving === "save" && <Spinner />}
-                {saving === "save"
+                {savingKind === "save" && <Spinner />}
+                {savingKind === "save"
                   ? "Guardando…"
                   : isEdit
                     ? "Guardar cambios"

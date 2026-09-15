@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from "react";
-import type { MyAccess, User } from "../api";
+import React, { useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { portalApi, type MyAccess } from "../api";
 import { AuthContext } from "./authTypes";
 
 const BASE = import.meta.env.VITE_API_URL ?? "";
@@ -13,61 +14,58 @@ async function authFetch(path: string, init?: RequestInit): Promise<Response> {
   });
 }
 
-async function loadCurrentUser(): Promise<MyAccess> {
-  const res = await authFetch("/api/portal/my-access");
-  if (!res.ok) throw new Error("Unable to load current user");
-
-  const data = await res.json();
-  return data as MyAccess;
+// Restaura la sesión a partir de la cookie HTTP-only: primero comprueba si
+// sigue siendo válida y, solo entonces, carga los datos completos del
+// cliente. Cualquier fallo (sesión caducada, red, etc.) se trata igual:
+// no autenticado — nunca se propaga como error de la query.
+async function bootstrapAuth(): Promise<MyAccess | null> {
+  try {
+    const res = await authFetch("/api/customer-auth/me");
+    if (!res.ok) return null;
+    const session = (await res.json()) as { authenticated?: boolean };
+    if (!session.authenticated) return null;
+    return await portalApi.myAccess();
+  } catch {
+    return null;
+  }
 }
+
+const AUTH_QUERY_KEY = ["auth", "session"];
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [access, setAccess] = useState<MyAccess | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  const applyAuth = (accessData: MyAccess) => {
-    setUser(accessData);
-    setAccess(accessData);
-  };
+  // La sesión solo cambia por un login/logout explícito (ver más abajo), no
+  // por un refetch en segundo plano — de ahí el staleTime infinito.
+  const { data: access = null, isLoading } = useQuery({
+    queryKey: AUTH_QUERY_KEY,
+    queryFn: bootstrapAuth,
+    retry: false,
+    staleTime: Infinity,
+  });
 
-  const clearAuth = () => {
-    setUser(null);
-    setAccess(null);
-  };
+  const login = useCallback(
+    async (username: string, password: string) => {
+      const res = await authFetch("/api/customer-auth/login", {
+        method: "POST",
+        body: JSON.stringify({ username, password }),
+      });
 
-  // ── Bootstrap: la sesión se restaura mediante la cookie HTTP-only ──
-  useEffect(() => {
-    authFetch("/api/customer-auth/me")
-      .then(async (res) => {
-        if (!res.ok) throw new Error("Session expired");
-        const session = (await res.json()) as { authenticated?: boolean };
-        if (!session.authenticated) throw new Error("Session expired");
-        applyAuth(await loadCurrentUser());
-      })
-      .catch(clearAuth)
-      .finally(() => setIsLoading(false));
-  }, []);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? "Login failed");
+      }
 
-  const login = useCallback(async (username: string, password: string) => {
-    const res = await authFetch("/api/customer-auth/login", {
-      method: "POST",
-      body: JSON.stringify({ username, password }),
-    });
-
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error((body as { error?: string }).error ?? "Login failed");
-    }
-
-    const data = (await res.json()) as { authenticated?: boolean };
-    if (!data.authenticated) throw new Error("Login failed");
-    applyAuth(await loadCurrentUser());
-  }, []);
+      const data = (await res.json()) as { authenticated?: boolean };
+      if (!data.authenticated) throw new Error("Login failed");
+      queryClient.setQueryData(AUTH_QUERY_KEY, await portalApi.myAccess());
+    },
+    [queryClient],
+  );
 
   const logout = useCallback(async () => {
     try {
@@ -75,17 +73,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     } catch {
       // best-effort
     } finally {
-      clearAuth();
+      queryClient.setQueryData(AUTH_QUERY_KEY, null);
     }
-  }, []);
+  }, [queryClient]);
 
   return (
     <AuthContext.Provider
       value={{
-        user,
+        user: access,
         access,
         isLoading,
-        isAuthenticated: !!user,
+        isAuthenticated: !!access,
         login,
         logout,
       }}

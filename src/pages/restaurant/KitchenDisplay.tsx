@@ -1,8 +1,11 @@
 // customer-portal/src/pages/restaurant/KitchenDisplay.tsx
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Clock } from "lucide-react";
 import { ordersApi, type Order, type OrderStatus } from "../../api";
 import { useRestaurantInstance } from "../../hooks/useRestaurantInstance";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import { Icon } from "../../components/icons";
 import { getErrorMessage } from "../../utils/errors";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -25,6 +28,8 @@ type Column = {
 // a cocina: solo pasan a "En preparación" (IN_PROGRESS) cuando alguien pulsa
 // "Enviar a cocina" en el pedido (o "Empezar" aquí mismo). Nunca ocurre de
 // forma automática al crear el pedido.
+const ACTIVE_STATUSES: OrderStatus[] = ["PENDING", "IN_PROGRESS", "READY"];
+
 const COLUMNS: Column[] = [
   {
     status: "PENDING",
@@ -158,19 +163,11 @@ function OrderTicket({
       {/* Notas / alergias */}
       {order.notes && (
         <div className="flex items-start gap-2 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25 rounded-lg px-3 py-2">
-          <svg
+          <Icon
+            name="warningTriangle"
             className="w-4 h-4 text-red-700 dark:text-red-400 shrink-0 mt-0.5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
             strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
-            />
-          </svg>
+          />
           <p className="text-sm text-red-800 dark:text-red-300 leading-snug">
             {order.notes}
           </p>
@@ -196,19 +193,7 @@ function OrderTicket({
           title="Cancelar pedido"
           className="shrink-0 p-4 rounded-xl text-zinc-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors disabled:opacity-50"
         >
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
+          <Icon name="close" className="w-5 h-5" strokeWidth={2} />
         </button>
       </div>
     </div>
@@ -220,10 +205,8 @@ function OrderTicket({
 export default function KitchenDisplay() {
   const instance = useRestaurantInstance();
   const id = instance?.id ?? 0;
+  const queryClient = useQueryClient();
 
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [busyId, setBusyId] = useState<number | null>(null);
   const [newIds, setNewIds] = useState<Set<number>>(new Set());
@@ -231,53 +214,46 @@ export default function KitchenDisplay() {
 
   const knownIds = useRef<Set<number> | null>(null);
 
-  // ── Carga + sondeo periódico ──
-  const load = useCallback(
-    async (isFirstLoad: boolean) => {
-      if (isFirstLoad) setLoading(true);
-      try {
-        const data = await ordersApi.list(id);
-        const active = data.filter((o) =>
-          (["PENDING", "IN_PROGRESS", "READY"] as OrderStatus[]).includes(
-            o.status,
-          ),
-        );
-        setOrders(active);
-        setError(null);
-
-        // Detecta pedidos nuevos desde la última carga para resaltarlos
-        if (knownIds.current) {
-          const freshIds = active
-            .filter((o) => !knownIds.current!.has(o.id))
-            .map((o) => o.id);
-          if (freshIds.length > 0) {
-            setNewIds((prev) => new Set([...prev, ...freshIds]));
-            freshIds.forEach((orderId) => {
-              setTimeout(() => {
-                setNewIds((prev) => {
-                  const next = new Set(prev);
-                  next.delete(orderId);
-                  return next;
-                });
-              }, NEW_ORDER_HIGHLIGHT_MS);
-            });
-          }
-        }
-        knownIds.current = new Set(active.map((o) => o.id));
-      } catch (e: unknown) {
-        setError(getErrorMessage(e, "Error al cargar los pedidos"));
-      } finally {
-        if (isFirstLoad) setLoading(false);
-      }
+  // ── Carga + sondeo periódico (refetchInterval sustituye al setInterval manual) ──
+  const {
+    data: orders = [],
+    isLoading: loading,
+    error: queryError,
+    refetch,
+  } = useQuery({
+    queryKey: ["orders", id, "active"],
+    queryFn: async () => {
+      const data = await ordersApi.list(id);
+      return data.filter((o) => ACTIVE_STATUSES.includes(o.status));
     },
-    [id],
-  );
+    enabled: !!id,
+    refetchInterval: POLL_INTERVAL_MS,
+  });
+  const error = queryError
+    ? getErrorMessage(queryError, "Error al cargar los pedidos")
+    : null;
 
+  // Detecta pedidos nuevos desde la última carga para resaltarlos
   useEffect(() => {
-    void load(true);
-    const poll = setInterval(() => void load(false), POLL_INTERVAL_MS);
-    return () => clearInterval(poll);
-  }, [load]);
+    if (knownIds.current) {
+      const freshIds = orders
+        .filter((o) => !knownIds.current!.has(o.id))
+        .map((o) => o.id);
+      if (freshIds.length > 0) {
+        setNewIds((prev) => new Set([...prev, ...freshIds]));
+        freshIds.forEach((orderId) => {
+          setTimeout(() => {
+            setNewIds((prev) => {
+              const next = new Set(prev);
+              next.delete(orderId);
+              return next;
+            });
+          }, NEW_ORDER_HIGHLIGHT_MS);
+        });
+      }
+    }
+    knownIds.current = new Set(orders.map((o) => o.id));
+  }, [orders]);
 
   // ── Reloj / tiempos transcurridos ──
   useEffect(() => {
@@ -286,17 +262,28 @@ export default function KitchenDisplay() {
   }, []);
 
   // ── Acciones ──
+  const statusMutation = useMutation({
+    mutationFn: ({
+      orderId,
+      status,
+    }: {
+      orderId: number;
+      status: OrderStatus;
+    }) => ordersApi.updateStatus(orderId, status),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["orders", id] });
+    },
+  });
+
   const advanceOrder = async (order: Order) => {
     const action = NEXT_ACTION[order.status];
     if (!action) return;
     setBusyId(order.id);
     try {
-      const updated = await ordersApi.updateStatus(order.id, action.next);
-      setOrders((prev) =>
-        updated.status === "DELIVERED"
-          ? prev.filter((o) => o.id !== order.id)
-          : prev.map((o) => (o.id === updated.id ? updated : o)),
-      );
+      await statusMutation.mutateAsync({
+        orderId: order.id,
+        status: action.next,
+      });
     } catch (e: unknown) {
       alert(getErrorMessage(e, "Error al actualizar el pedido"));
     } finally {
@@ -307,8 +294,10 @@ export default function KitchenDisplay() {
   const cancelOrder = async (order: Order) => {
     setBusyId(order.id);
     try {
-      await ordersApi.updateStatus(order.id, "CANCELLED");
-      setOrders((prev) => prev.filter((o) => o.id !== order.id));
+      await statusMutation.mutateAsync({
+        orderId: order.id,
+        status: "CANCELLED",
+      });
       setCancelConfirm(null);
     } catch (e: unknown) {
       alert(getErrorMessage(e, "Error al cancelar el pedido"));
@@ -342,7 +331,7 @@ export default function KitchenDisplay() {
         <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl px-5 py-4 text-sm text-red-700 dark:text-red-400">
           {error}
           <button
-            onClick={() => void load(true)}
+            onClick={() => void refetch()}
             className="ml-4 underline hover:no-underline"
           >
             Reintentar
@@ -365,19 +354,7 @@ export default function KitchenDisplay() {
           </p>
         </div>
         <div className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400">
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={1.8}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
+          <Clock className="w-5 h-5" strokeWidth={1.8} />
           <span className="text-base font-semibold tabular-nums">
             {formatClock(new Date(now))}
           </span>

@@ -1,12 +1,12 @@
 // customer-portal/src/pages/restaurant/DishForm.tsx
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   menusApi,
   dishesApi,
   menuSectionsApi,
   type Dish,
-  type MenuSection,
   type Allergen,
 } from "../../api";
 import { useRestaurantInstance } from "../../hooks/useRestaurantInstance";
@@ -16,10 +16,10 @@ import {
   FormPageHeader,
   SectionTitle,
   Field,
-  getInputClass,
   FormErrorBanner,
   FormPageSkeleton,
 } from "../../components/FormPage";
+import { getInputClass } from "../../utils/inputClass";
 import { getErrorMessage } from "../../utils/errors";
 import { ALLERGEN_LABELS, ALL_ALLERGENS } from "../../utils/allergens";
 
@@ -54,17 +54,16 @@ export default function DishForm() {
   const menuIdParam = searchParams.get("menuId");
 
   const [dish, setDish] = useState<Dish | null>(null);
-  const [sections, setSections] = useState<MenuSection[]>([]);
   const [targetMenuId, setTargetMenuId] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
 
   const [form, setForm] = useState<DishFields>(EMPTY_DISH);
   const [nameError, setNameError] = useState("");
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+
+  const queryClient = useQueryClient();
 
   const goBack = useCallback(
     (menuId?: number | null) => {
@@ -75,54 +74,76 @@ export default function DishForm() {
   );
 
   // ── Load (no hay endpoint de detalle de plato: se busca en las cartas) ──
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [menus, sectionData] = await Promise.all([
-        menusApi.list(instId),
-        menuSectionsApi.list(instId),
-      ]);
-      setSections(sectionData);
+  const {
+    data: menus,
+    isLoading: menusLoading,
+    error: menusQueryError,
+  } = useQuery({
+    queryKey: ["menus", instId],
+    queryFn: () => menusApi.list(instId),
+    enabled: !!instId,
+  });
+  const { data: sectionsData, isLoading: sectionsLoading } = useQuery({
+    queryKey: ["menuSections", instId],
+    queryFn: () => menuSectionsApi.list(instId),
+    enabled: !!instId,
+  });
+  const sections = sectionsData ?? [];
+  const loading = menusLoading || sectionsLoading;
+  const loadError = menusQueryError
+    ? getErrorMessage(menusQueryError, "Error al cargar el plato")
+    : null;
 
-      if (isEdit) {
-        const found = menus
-          .flatMap((m) => m.dishes)
-          .find((d) => d.id === Number(dishId));
-        if (!found) {
-          navigate(`/restaurant/${slug}/menu`, { replace: true });
-          return;
-        }
-        setDish(found);
-        setTargetMenuId(found.menuId);
-        setForm({
-          name: found.name,
-          description: found.description,
-          price: found.price,
-          category: found.category,
-          allergens: found.allergens ?? [],
-        });
-      } else {
-        const menu =
-          menus.find((m) => m.id === Number(menuIdParam)) ?? menus[0];
-        if (!menu) {
-          navigate(`/restaurant/${slug}/menu`, { replace: true });
-          return;
-        }
-        setTargetMenuId(menu.id);
-        setForm({ ...EMPTY_DISH, category: sectionData[0]?.name ?? "" });
-      }
-    } catch (loadError: unknown) {
-      setError(getErrorMessage(loadError, "Error al cargar el plato"));
-    } finally {
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [instId, isEdit, dishId, menuIdParam]);
+  // Se calcula una sola vez, cuando ambas listas ya han llegado: localiza el
+  // plato a editar, o la carta destino si es uno nuevo.
+  const targetDish = useMemo(() => {
+    if (!isEdit || !menus) return undefined;
+    return menus.flatMap((m) => m.dishes).find((d) => d.id === Number(dishId));
+  }, [isEdit, menus, dishId]);
+  const targetMenu = useMemo(() => {
+    if (isEdit || !menus) return undefined;
+    return menus.find((m) => m.id === Number(menuIdParam)) ?? menus[0];
+  }, [isEdit, menus, menuIdParam]);
 
+  // Si no hay plato/carta destino una vez cargados los datos, es que la URL
+  // ya no es válida (p. ej. el plato se borró) — es un efecto secundario
+  // real (navegación), así que sí va en un efecto.
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (initialized || !menus || sectionsData === undefined) return;
+    const notFound = isEdit ? !targetDish : !targetMenu;
+    if (notFound) navigate(`/restaurant/${slug}/menu`, { replace: true });
+  }, [
+    initialized,
+    menus,
+    sectionsData,
+    isEdit,
+    targetDish,
+    targetMenu,
+    navigate,
+    slug,
+  ]);
+
+  // Siembra el formulario una sola vez. Va en el cuerpo del render (no en un
+  // efecto): es una adaptación de estado a partir de datos ya cargados, no
+  // una sincronización con un sistema externo.
+  if (!initialized && menus && sectionsData !== undefined) {
+    if (isEdit && targetDish) {
+      setInitialized(true);
+      setDish(targetDish);
+      setTargetMenuId(targetDish.menuId);
+      setForm({
+        name: targetDish.name,
+        description: targetDish.description,
+        price: targetDish.price,
+        category: targetDish.category,
+        allergens: targetDish.allergens ?? [],
+      });
+    } else if (!isEdit && targetMenu) {
+      setInitialized(true);
+      setTargetMenuId(targetMenu.id);
+      setForm({ ...EMPTY_DISH, category: sectionsData[0]?.name ?? "" });
+    }
+  }
 
   const setField = <K extends keyof DishFields>(k: K, v: DishFields[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -138,56 +159,65 @@ export default function DishForm() {
 
   // ── Submit ────────────────────────────────────────────────────────────────
 
-  const submit = async () => {
+  const submitMutation = useMutation({
+    mutationFn: async () => {
+      const payload = {
+        name: form.name.trim(),
+        description: form.description.trim(),
+        price: form.price.trim(),
+        category: form.category,
+        allergens: form.allergens,
+      };
+      if (isEdit && dish) {
+        await dishesApi.update(dish.id, payload);
+        return dish.menuId;
+      } else if (targetMenuId) {
+        await dishesApi.create(targetMenuId, payload);
+        return targetMenuId;
+      }
+      return null;
+    },
+    onSuccess: (menuId) => {
+      void queryClient.invalidateQueries({ queryKey: ["menus", instId] });
+      goBack(menuId);
+    },
+    onError: (submitError: unknown) =>
+      setError(getErrorMessage(submitError, "Error al guardar el plato")),
+  });
+
+  const submit = () => {
     if (!form.name.trim()) {
       setNameError("El nombre es obligatorio.");
       return;
     }
     setNameError("");
-
-    const payload = {
-      name: form.name.trim(),
-      description: form.description.trim(),
-      price: form.price.trim(),
-      category: form.category,
-      allergens: form.allergens,
-    };
-
-    setSaving(true);
     setError(null);
-    try {
-      if (isEdit && dish) {
-        await dishesApi.update(dish.id, payload);
-        goBack(dish.menuId);
-      } else if (targetMenuId) {
-        await dishesApi.create(targetMenuId, payload);
-        goBack(targetMenuId);
-      }
-    } catch (submitError: unknown) {
-      setError(getErrorMessage(submitError, "Error al guardar el plato"));
-    } finally {
-      setSaving(false);
-    }
+    submitMutation.mutate();
   };
 
   // ── Delete ────────────────────────────────────────────────────────────────
 
-  const handleDelete = async () => {
-    if (!dish) return;
-    setDeleting(true);
-    try {
-      await dishesApi.remove(dish.id);
-      goBack(dish.menuId);
-    } catch (deleteError: unknown) {
+  const deleteMutation = useMutation({
+    mutationFn: () => dishesApi.remove(dish!.id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["menus", instId] });
+      goBack(dish?.menuId);
+    },
+    onError: (deleteError: unknown) => {
       setError(getErrorMessage(deleteError, "Error al eliminar el plato"));
-      setDeleting(false);
       setShowDeleteConfirm(false);
-    }
+    },
+  });
+
+  const handleDelete = () => {
+    if (dish) deleteMutation.mutate();
   };
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
   if (loading) return <FormPageSkeleton />;
+
+  const displayError = error ?? loadError;
 
   return (
     <>
@@ -204,7 +234,7 @@ export default function DishForm() {
             </>
           }
           confirmLabel="Eliminar"
-          loading={deleting}
+          loading={deleteMutation.isPending}
           onConfirm={handleDelete}
           onCancel={() => setShowDeleteConfirm(false)}
         />
@@ -309,7 +339,7 @@ export default function DishForm() {
             </div>
           </div>
 
-          {error && <FormErrorBanner message={error} />}
+          {displayError && <FormErrorBanner message={displayError} />}
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 pt-2">
             {isEdit && (
@@ -325,12 +355,12 @@ export default function DishForm() {
             <div className="flex flex-col sm:flex-row gap-2.5 sm:ml-auto">
               <button
                 type="button"
-                onClick={() => void submit()}
-                disabled={saving}
+                onClick={submit}
+                disabled={submitMutation.isPending}
                 className="flex items-center justify-center gap-2 px-5 py-4 bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white text-base font-semibold rounded-xl transition-colors"
               >
-                {saving && <Spinner />}
-                {saving
+                {submitMutation.isPending && <Spinner />}
+                {submitMutation.isPending
                   ? "Guardando…"
                   : isEdit
                     ? "Guardar cambios"

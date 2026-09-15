@@ -1,8 +1,7 @@
 // customer-portal/src/pages/restaurant/Analytics.tsx
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   analyticsApi,
-  type AnalyticsSummary,
   type OrderStatus,
   type ReservationStatus,
 } from "../../api";
@@ -48,7 +47,9 @@ function StatCard({
       >
         {value}
       </p>
-      <p className="mt-2 text-sm text-zinc-500 min-h-5">{hint ?? "\u00A0"}</p>
+      <p className="mt-2 text-sm text-zinc-500 min-h-[1.25rem]">
+        {hint ?? "\u00A0"}
+      </p>
     </div>
   );
 }
@@ -87,21 +88,19 @@ function BreakdownRow({
 export default function Analytics() {
   const instance = useRestaurantInstance();
   const instanceId = instance?.id ?? 0;
-  const [data, setData] = useState<AnalyticsSummary | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!instanceId) return;
-    setLoading(true);
-    analyticsApi
-      .get(instanceId)
-      .then(setData)
-      .catch((e) =>
-        setError(getErrorMessage(e, "No se pudieron cargar las analíticas")),
-      )
-      .finally(() => setLoading(false));
-  }, [instanceId]);
+  const {
+    data,
+    isLoading: loading,
+    error: queryError,
+  } = useQuery({
+    queryKey: ["analytics", instanceId],
+    queryFn: () => analyticsApi.get(instanceId),
+    enabled: !!instanceId,
+  });
+  const error = queryError
+    ? getErrorMessage(queryError, "No se pudieron cargar las analíticas")
+    : null;
 
   if (error) {
     return (

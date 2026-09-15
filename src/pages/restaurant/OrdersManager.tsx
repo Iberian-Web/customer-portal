@@ -1,6 +1,8 @@
 // customer-portal/src/pages/restaurant/OrdersManager.tsx
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import { Pencil, Printer, XCircle, Trash2, Plus, Search } from "lucide-react";
 import { ordersApi, type Order, type OrderStatus } from "../../api";
 import { useRestaurantInstance } from "../../hooks/useRestaurantInstance";
 import ConfirmDialog from "../../components/ConfirmDialog";
@@ -194,38 +196,14 @@ function OrderCard({
             title="Editar pedido"
             className="p-3 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors"
           >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.8}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"
-              />
-            </svg>
+            <Pencil className="w-5 h-5" strokeWidth={1.8} />
           </button>
           <button
             onClick={onPrint}
             title="Imprimir ticket"
             className="p-3 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors"
           >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.8}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 00-1.913-.247M6.34 18H5.25A2.25 2.25 0 013 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 011.913-.247m10.5 0a48.536 48.536 0 00-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659"
-              />
-            </svg>
+            <Printer className="w-5 h-5" strokeWidth={1.8} />
           </button>
           {canCancel && (
             <button
@@ -234,19 +212,7 @@ function OrderCard({
               title="Cancelar pedido"
               className="p-3 text-zinc-500 hover:text-amber-700 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-400/10 rounded-xl transition-colors disabled:opacity-50"
             >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.8}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
-                />
-              </svg>
+              <XCircle className="w-5 h-5" strokeWidth={1.8} />
             </button>
           )}
           <button
@@ -254,19 +220,7 @@ function OrderCard({
             title="Eliminar pedido"
             className="p-3 text-zinc-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded-xl transition-colors"
           >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.8}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 01-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
-              />
-            </svg>
+            <Trash2 className="w-5 h-5" strokeWidth={1.8} />
           </button>
         </div>
       </div>
@@ -281,10 +235,7 @@ export default function OrdersManager() {
   const instance = useRestaurantInstance();
   const id = instance?.id ?? 0;
   const slug = instance?.slug ?? "";
-
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   // UI state
   const [search, setSearch] = useState("");
@@ -292,32 +243,25 @@ export default function OrdersManager() {
     "Todos",
   );
 
-  // Status update / delete in progress
-  const [updatingId, setUpdatingId] = useState<number | null>(null);
-
   // Confirmaciones pendientes (cancelar / eliminar), en vez de window.confirm()
   const [cancelConfirm, setCancelConfirm] = useState<Order | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Order | null>(null);
-  const [deleting, setDeleting] = useState(false);
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await ordersApi.list(id);
-      setOrders(data);
-    } catch (e: unknown) {
-      setError(getErrorMessage(e, "Error al cargar los pedidos"));
-    } finally {
-      setLoading(false);
-    }
-  }, [id]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const {
+    data: orders = [],
+    isLoading: loading,
+    error: queryError,
+    refetch,
+  } = useQuery({
+    queryKey: ["orders", id],
+    queryFn: () => ordersApi.list(id),
+    enabled: !!id,
+  });
+  const error = queryError
+    ? getErrorMessage(queryError, "Error al cargar los pedidos")
+    : null;
 
   // ── Filtering ─────────────────────────────────────────────────────────────
 
@@ -363,52 +307,49 @@ export default function OrdersManager() {
   ).length;
 
   // ── Status update ─────────────────────────────────────────────────────────
+  // La misma mutation cubre tanto "avanzar de estado" como "cancelar" (ambos
+  // son, en el fondo, un cambio de estado); `variables` permite saber qué
+  // pedido concreto está en curso sin un estado adicional.
 
-  const handleStatusChange = async (order: Order, newStatus: OrderStatus) => {
-    setUpdatingId(order.id);
-    try {
-      const updated = await ordersApi.updateStatus(order.id, newStatus);
-      setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
-    } catch (e: unknown) {
-      alert(getErrorMessage(e, "Error al actualizar el estado del pedido"));
-    } finally {
-      setUpdatingId(null);
-    }
+  const statusMutation = useMutation({
+    mutationFn: ({
+      orderId,
+      status,
+    }: {
+      orderId: number;
+      status: OrderStatus;
+    }) => ordersApi.updateStatus(orderId, status),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["orders", id] });
+      setCancelConfirm(null);
+    },
+    onError: (e: unknown) =>
+      alert(getErrorMessage(e, "Error al actualizar el pedido")),
+  });
+
+  const handleStatusChange = (order: Order, newStatus: OrderStatus) => {
+    statusMutation.mutate({ orderId: order.id, status: newStatus });
   };
 
-  // ── Cancel ────────────────────────────────────────────────────────────────
-
-  const handleCancelConfirmed = async () => {
+  const handleCancelConfirmed = () => {
     if (!cancelConfirm) return;
-    setUpdatingId(cancelConfirm.id);
-    try {
-      const updated = await ordersApi.updateStatus(
-        cancelConfirm.id,
-        "CANCELLED",
-      );
-      setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
-      setCancelConfirm(null);
-    } catch (e: unknown) {
-      alert(getErrorMessage(e, "Error al cancelar el pedido"));
-    } finally {
-      setUpdatingId(null);
-    }
+    statusMutation.mutate({ orderId: cancelConfirm.id, status: "CANCELLED" });
   };
 
   // ── Delete ────────────────────────────────────────────────────────────────
 
-  const handleDeleteConfirmed = async () => {
-    if (!deleteConfirm) return;
-    setDeleting(true);
-    try {
-      await ordersApi.remove(deleteConfirm.id);
-      setOrders((prev) => prev.filter((o) => o.id !== deleteConfirm.id));
+  const deleteMutation = useMutation({
+    mutationFn: (orderId: number) => ordersApi.remove(orderId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["orders", id] });
       setDeleteConfirm(null);
-    } catch (e: unknown) {
-      alert(getErrorMessage(e, "Error al eliminar el pedido"));
-    } finally {
-      setDeleting(false);
-    }
+    },
+    onError: (e: unknown) =>
+      alert(getErrorMessage(e, "Error al eliminar el pedido")),
+  });
+
+  const handleDeleteConfirmed = () => {
+    if (deleteConfirm) deleteMutation.mutate(deleteConfirm.id);
   };
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -418,7 +359,10 @@ export default function OrdersManager() {
       <div className="px-6 lg:px-8 py-6 w-full">
         <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl px-5 py-4 text-sm text-red-700 dark:text-red-400">
           {error}
-          <button onClick={load} className="ml-4 underline hover:no-underline">
+          <button
+            onClick={() => void refetch()}
+            className="ml-4 underline hover:no-underline"
+          >
             Reintentar
           </button>
         </div>
@@ -442,19 +386,7 @@ export default function OrdersManager() {
           onClick={() => navigate(`/restaurant/${slug}/orders/new`)}
           className="flex items-center gap-2 px-5 py-3 bg-teal-600 hover:bg-teal-500 text-white text-base font-bold rounded-xl transition-colors"
         >
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 4.5v15m7.5-7.5h-15"
-            />
-          </svg>
+          <Plus className="w-5 h-5" strokeWidth={2} />
           Nuevo pedido
         </button>
       </div>
@@ -502,19 +434,10 @@ export default function OrdersManager() {
       {/* Filtros */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
         <div className="relative flex-1 min-w-72">
-          <svg
+          <Search
             className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
             strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
-            />
-          </svg>
+          />
           <input
             type="text"
             placeholder="Buscar por mesa, camarero, plato o nº de pedido..."
@@ -556,10 +479,13 @@ export default function OrdersManager() {
             <OrderCard
               key={order.id}
               order={order}
-              updating={updatingId === order.id}
+              updating={
+                statusMutation.isPending &&
+                statusMutation.variables?.orderId === order.id
+              }
               onAdvance={() => {
                 const next = NEXT_STATUS[order.status];
-                if (next) void handleStatusChange(order, next.next);
+                if (next) handleStatusChange(order, next.next);
               }}
               onCancel={() => setCancelConfirm(order)}
               onEdit={() => navigate(`/restaurant/${slug}/orders/${order.id}`)}
@@ -599,7 +525,10 @@ export default function OrdersManager() {
           }
           confirmLabel="Cancelar pedido"
           cancelLabel="Volver"
-          loading={updatingId === cancelConfirm.id}
+          loading={
+            statusMutation.isPending &&
+            statusMutation.variables?.orderId === cancelConfirm.id
+          }
           onConfirm={handleCancelConfirmed}
           onCancel={() => setCancelConfirm(null)}
         />
@@ -618,7 +547,7 @@ export default function OrdersManager() {
             </>
           }
           confirmLabel="Eliminar pedido"
-          loading={deleting}
+          loading={deleteMutation.isPending}
           onConfirm={handleDeleteConfirmed}
           onCancel={() => setDeleteConfirm(null)}
         />

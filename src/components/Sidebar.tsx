@@ -1,6 +1,15 @@
 // customer-portal/src/components/Sidebar.tsx
 import { NavLink, useNavigate } from "react-router-dom";
 import { useState } from "react";
+import {
+  CalendarDays,
+  UtensilsCrossed,
+  ClipboardList,
+  ChefHat,
+  BarChart3,
+  LogOut,
+  type LucideIcon,
+} from "lucide-react";
 import type { Instance } from "../api";
 import { useAuth } from "../auth/useAuth";
 import { slugify } from "../utils/slug";
@@ -18,115 +27,44 @@ type NavEntry = {
 
 const iconClass = "w-4 h-4";
 
+function serviceIcon(LucideIconComponent: LucideIcon) {
+  return <LucideIconComponent className={iconClass} strokeWidth={1.8} />;
+}
+
 const SERVICE_ROUTE_MAP: Record<string, (slug: string) => NavEntry[]> = {
   Reservas: (slug) => [
     {
       label: "Reservas",
       to: `/restaurant/${slug}/reservations`,
-      icon: (
-        <svg
-          className={iconClass}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={1.8}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
-          />
-        </svg>
-      ),
+      icon: serviceIcon(CalendarDays),
     },
   ],
   "Menú Digital": (slug) => [
     {
       label: "Menú",
       to: `/restaurant/${slug}/menu`,
-      icon: (
-        <svg
-          className={iconClass}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={1.8}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12"
-          />
-        </svg>
-      ),
+      icon: serviceIcon(UtensilsCrossed),
     },
   ],
   Pedidos: (slug) => [
     {
       label: "Pedidos",
       to: `/restaurant/${slug}/orders`,
-      icon: (
-        <svg
-          className={iconClass}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={1.8}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15"
-          />
-        </svg>
-      ),
+      icon: serviceIcon(ClipboardList),
     },
   ],
   Cocina: (slug) => [
     {
       label: "Cocina",
       to: `/restaurant/${slug}/kitchen`,
-      icon: (
-        <svg
-          className={iconClass}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={1.8}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M15.362 5.214A8.252 8.252 0 0112 21 8.25 8.25 0 016.038 7.048 8.287 8.287 0 009 9.6a8.983 8.983 0 013.361-6.867 8.21 8.21 0 003 2.48z"
-          />
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M12 18a3.75 3.75 0 00.495-7.467 5.99 5.99 0 00-1.925 3.546 5.974 5.974 0 01-2.133-1A3.75 3.75 0 0012 18z"
-          />
-        </svg>
-      ),
+      icon: serviceIcon(ChefHat),
     },
   ],
   Analíticas: (slug) => [
     {
       label: "Analíticas",
       to: `/restaurant/${slug}/analytics`,
-      icon: (
-        <svg
-          className={iconClass}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={1.8}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M3 3v16.5A1.5 1.5 0 004.5 21H21M7.5 15.75V9M12.75 15.75V6M18 15.75V12"
-          />
-        </svg>
-      ),
+      icon: serviceIcon(BarChart3),
     },
   ],
 };
@@ -272,19 +210,7 @@ function SidebarContent({
           title={collapsed ? "Cerrar sesión" : undefined}
           className={`w-full px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 rounded-lg transition-colors text-left flex items-center gap-2.5 ${collapsed ? "justify-center" : ""}`}
         >
-          <svg
-            className="w-4 h-4 shrink-0"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={1.8}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9"
-            />
-          </svg>
+          <LogOut className="w-4 h-4 shrink-0" strokeWidth={1.8} />
           {!collapsed && "Cerrar sesión"}
         </button>
       </div>

@@ -1,5 +1,6 @@
 // customer-portal/src/pages/restaurant/ReservationForm.tsx
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   reservationsApi,
@@ -13,10 +14,10 @@ import {
   FormPageHeader,
   SectionTitle,
   Field,
-  getInputClass,
   FormErrorBanner,
   FormPageSkeleton,
 } from "../../components/FormPage";
+import { getInputClass } from "../../utils/inputClass";
 import { getErrorMessage } from "../../utils/errors";
 
 // ─── Form state ───────────────────────────────────────────────────────────────
@@ -68,50 +69,60 @@ export default function ReservationForm() {
   const goBack = () => navigate(`/restaurant/${slug}/reservations`);
 
   const [reservation, setReservation] = useState<Reservation | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
 
   const [form, setForm] = useState<FormFields>(EMPTY_FORM);
   const [fieldErrors, setFieldErrors] = useState<FormErrors>({});
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+
+  const queryClient = useQueryClient();
 
   // ── Load (no hay endpoint de detalle: se busca en el listado) ──
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      if (isEdit) {
-        const all = await reservationsApi.list(id);
-        const found = all.find((r) => r.id === Number(reservationId));
-        if (!found) {
-          navigate(`/restaurant/${slug}/reservations`, { replace: true });
-          return;
-        }
-        setReservation(found);
-        setForm({
-          customerName: found.customerName,
-          customerPhone: found.customerPhone,
-          customerEmail: found.customerEmail,
-          date: isoToDateInput(found.reservationDate),
-          time: isoToTimeInput(found.reservationDate),
-          guests: String(found.guests),
-          notes: found.notes,
-        });
-      }
-    } catch (loadError: unknown) {
-      setError(getErrorMessage(loadError, "Error al cargar la reserva"));
-    } finally {
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, isEdit, reservationId]);
+  const {
+    data: reservationsList,
+    isLoading: listLoading,
+    error: queryError,
+  } = useQuery({
+    queryKey: ["reservations", id],
+    queryFn: () => reservationsApi.list(id),
+    enabled: isEdit && !!id,
+  });
+  const loading = isEdit ? listLoading || !initialized : false;
+  const loadError = queryError
+    ? getErrorMessage(queryError, "Error al cargar la reserva")
+    : null;
 
+  // Localiza la reserva a editar (una sola vez, cuando llega el listado).
+  const found = useMemo(() => {
+    if (!isEdit || !reservationsList) return undefined;
+    return reservationsList.find((r) => r.id === Number(reservationId));
+  }, [isEdit, reservationsList, reservationId]);
+
+  // Si no existe, es que la URL ya no es válida — efecto secundario real
+  // (navegación), así que sí va en un efecto.
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (!isEdit || initialized || !reservationsList) return;
+    if (!found) navigate(`/restaurant/${slug}/reservations`, { replace: true });
+  }, [isEdit, initialized, reservationsList, found, navigate, slug]);
+
+  // Siembra el formulario una sola vez. Va en el cuerpo del render (no en
+  // un efecto): es una adaptación de estado a partir de datos ya cargados,
+  // no una sincronización con un sistema externo.
+  if (isEdit && !initialized && reservationsList && found) {
+    setInitialized(true);
+    setReservation(found);
+    setForm({
+      customerName: found.customerName,
+      customerPhone: found.customerPhone,
+      customerEmail: found.customerEmail,
+      date: isoToDateInput(found.reservationDate),
+      time: isoToTimeInput(found.reservationDate),
+      guests: String(found.guests),
+      notes: found.notes,
+    });
+  }
 
   const setField = (key: keyof FormFields, value: string) => {
     setForm((f) => ({ ...f, [key]: value }));
@@ -135,8 +146,22 @@ export default function ReservationForm() {
     return Object.keys(errs).length === 0;
   };
 
-  const submit = async () => {
+  const submitMutation = useMutation({
+    mutationFn: (payload: ReservationCreate) =>
+      isEdit && reservation
+        ? reservationsApi.update(reservation.id, payload)
+        : reservationsApi.create(id, payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["reservations", id] });
+      goBack();
+    },
+    onError: (submitError: unknown) =>
+      setError(getErrorMessage(submitError, "Error al guardar la reserva")),
+  });
+
+  const submit = () => {
     if (!validate()) return;
+    setError(null);
 
     const payload: ReservationCreate = {
       customerName: form.customerName.trim(),
@@ -146,41 +171,32 @@ export default function ReservationForm() {
       guests: Number(form.guests),
       notes: form.notes.trim() || undefined,
     };
-
-    setSaving(true);
-    setError(null);
-    try {
-      if (isEdit && reservation) {
-        await reservationsApi.update(reservation.id, payload);
-      } else {
-        await reservationsApi.create(id, payload);
-      }
-      goBack();
-    } catch (submitError: unknown) {
-      setError(getErrorMessage(submitError, "Error al guardar la reserva"));
-    } finally {
-      setSaving(false);
-    }
+    submitMutation.mutate(payload);
   };
 
   // ── Delete ────────────────────────────────────────────────────────────────
 
-  const handleDelete = async () => {
-    if (!reservation) return;
-    setDeleting(true);
-    try {
-      await reservationsApi.remove(reservation.id);
+  const deleteMutation = useMutation({
+    mutationFn: () => reservationsApi.remove(reservation!.id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["reservations", id] });
       goBack();
-    } catch (deleteError: unknown) {
+    },
+    onError: (deleteError: unknown) => {
       setError(getErrorMessage(deleteError, "Error al eliminar la reserva"));
-      setDeleting(false);
       setShowDeleteConfirm(false);
-    }
+    },
+  });
+
+  const handleDelete = () => {
+    if (reservation) deleteMutation.mutate();
   };
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
   if (loading) return <FormPageSkeleton />;
+
+  const displayError = error ?? loadError;
 
   return (
     <>
@@ -200,7 +216,7 @@ export default function ReservationForm() {
             </>
           }
           confirmLabel="Eliminar reserva"
-          loading={deleting}
+          loading={deleteMutation.isPending}
           onConfirm={handleDelete}
           onCancel={() => setShowDeleteConfirm(false)}
         />
@@ -301,7 +317,7 @@ export default function ReservationForm() {
             </div>
           </div>
 
-          {error && <FormErrorBanner message={error} />}
+          {displayError && <FormErrorBanner message={displayError} />}
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 pt-2">
             {isEdit && (
@@ -317,12 +333,12 @@ export default function ReservationForm() {
             <div className="flex flex-col sm:flex-row gap-2.5 sm:ml-auto">
               <button
                 type="button"
-                onClick={() => void submit()}
-                disabled={saving}
+                onClick={submit}
+                disabled={submitMutation.isPending}
                 className="flex items-center justify-center gap-2 px-5 py-4 bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white text-base font-semibold rounded-xl transition-colors"
               >
-                {saving && <Spinner />}
-                {saving
+                {submitMutation.isPending && <Spinner />}
+                {submitMutation.isPending
                   ? "Guardando…"
                   : isEdit
                     ? "Guardar cambios"

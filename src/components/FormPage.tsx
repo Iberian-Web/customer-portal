@@ -80,13 +80,6 @@ export function Field({
   );
 }
 
-export const getInputClass = (hasError?: boolean | string) =>
-  `w-full bg-zinc-100 dark:bg-zinc-800 border rounded-xl px-4 py-3 text-base text-zinc-800 dark:text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-2 transition-colors ${
-    hasError
-      ? "border-red-300 dark:border-red-500/50 focus:border-red-500 focus:ring-red-500/30"
-      : "border-zinc-300 dark:border-zinc-700 focus:border-teal-500 focus:ring-teal-500/30"
-  }`;
-
 export function FormErrorBanner({ message }: { message: string }) {
   return (
     <div className="flex items-start gap-2 text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-400/10 border border-red-200 dark:border-red-400/20 rounded-lg px-3 py-2">

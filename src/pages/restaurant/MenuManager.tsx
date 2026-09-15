@@ -1,5 +1,6 @@
 // customer-portal/src/pages/restaurant/MenuManager.tsx
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   menusApi,
@@ -56,64 +57,58 @@ export default function MenuManager() {
   const [searchParams] = useSearchParams();
 
   // ── State ──
-  const [menus, setMenus] = useState<Menu[]>([]);
-  const [sections, setSections] = useState<MenuSection[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [activeMenuId, setActiveMenuId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("Todos");
 
-  // Menu CRUD state
+  // Menu CRUD state (UI only — el estado de "en curso" vive en cada mutation)
   const [newMenuName, setNewMenuName] = useState("");
-  const [creatingMenu, setCreatingMenu] = useState(false);
   const [editingMenuId, setEditingMenuId] = useState<number | null>(null);
   const [editingMenuName, setEditingMenuName] = useState("");
   const [deleteMenuConfirm, setDeleteMenuConfirm] = useState<Menu | null>(null);
-  const [deletingMenu, setDeletingMenu] = useState(false);
 
   // Dish CRUD state (la edición de datos vive en DishForm; solo queda borrar)
   const [deleteDishConfirm, setDeleteDishConfirm] = useState<Dish | null>(null);
-  const [deletingDish, setDeletingDish] = useState(false);
 
   // Section (management) CRUD state
   const [newSectionName, setNewSectionName] = useState("");
-  const [addingSection, setAddingSection] = useState(false);
   const [sectionError, setSectionError] = useState("");
   const [editingSectionId, setEditingSectionId] = useState<number | null>(null);
   const [editingSectionName, setEditingSectionName] = useState("");
   const [deleteSectionConfirm, setDeleteSectionConfirm] =
     useState<MenuSection | null>(null);
-  const [deletingSection, setDeletingSection] = useState(false);
   const [reorderingId, setReorderingId] = useState<number | null>(null);
 
   // ── Data loading ──
-  const load = useCallback(async () => {
-    if (!instId) return;
-    try {
-      const [menuData, sectionData] = await Promise.all([
-        menusApi.list(instId),
-        menuSectionsApi.list(instId),
-      ]);
-      setMenus(menuData);
-      setSections(sectionData);
-      if (menuData.length > 0) {
-        // Si venimos de crear/editar un plato, se restaura la carta desde la
-        // que se navegó (?menuId=), en vez de caer siempre en la primera.
-        const paramId = Number(searchParams.get("menuId"));
-        const fromParam = menuData.some((m) => m.id === paramId)
-          ? paramId
-          : null;
-        setActiveMenuId((current) => current ?? fromParam ?? menuData[0].id);
-      }
-    } finally {
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [instId]);
+  const { data: menus = [], isLoading: loading } = useQuery({
+    queryKey: ["menus", instId],
+    queryFn: () => menusApi.list(instId),
+    enabled: !!instId,
+  });
+  const { data: sections = [] } = useQuery({
+    queryKey: ["menuSections", instId],
+    queryFn: () => menuSectionsApi.list(instId),
+    enabled: !!instId,
+  });
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const invalidateMenus = () =>
+    queryClient.invalidateQueries({ queryKey: ["menus", instId] });
+  const invalidateSections = () =>
+    queryClient.invalidateQueries({ queryKey: ["menuSections", instId] });
+
+  // Elige la carta activa: mantiene la actual si sigue existiendo; si no
+  // (primera carga, o se acaba de borrar la que estaba activa), cae en la
+  // de la URL (?menuId=) o en la primera de la lista. Se calcula durante el
+  // render, no en un efecto: es una simple adaptación de estado a partir de
+  // datos ya cargados, no una sincronización con un sistema externo.
+  if (menus.length === 0) {
+    if (activeMenuId !== null) setActiveMenuId(null);
+  } else if (!menus.some((m) => m.id === activeMenuId)) {
+    const paramId = Number(searchParams.get("menuId"));
+    const fromParam = menus.some((m) => m.id === paramId) ? paramId : null;
+    setActiveMenuId(fromParam ?? menus[0].id);
+  }
 
   // ── Derived ──
   const activeMenu = menus.find((m) => m.id === activeMenuId) ?? null;
@@ -129,161 +124,146 @@ export default function MenuManager() {
   });
 
   // ── Menu actions ──
-  const createMenu = async () => {
-    if (!newMenuName.trim()) return;
-    setCreatingMenu(true);
-    try {
-      const menu = await menusApi.create(instId, newMenuName.trim());
-      setMenus((prev) => [menu, ...prev]);
+  const createMenuMutation = useMutation({
+    mutationFn: (name: string) => menusApi.create(instId, name),
+    onSuccess: (menu) => {
+      void invalidateMenus();
       setActiveMenuId(menu.id);
       setNewMenuName("");
-    } finally {
-      setCreatingMenu(false);
-    }
+    },
+  });
+  const createMenu = () => {
+    const name = newMenuName.trim();
+    if (name) createMenuMutation.mutate(name);
   };
 
-  const saveMenuRename = async (menuId: number) => {
-    if (!editingMenuName.trim()) return;
-    try {
-      const updated = await menusApi.update(menuId, editingMenuName.trim());
-      setMenus((prev) =>
-        prev.map((m) => (m.id === menuId ? { ...m, name: updated.name } : m)),
-      );
-    } finally {
-      setEditingMenuId(null);
-    }
+  const renameMenuMutation = useMutation({
+    mutationFn: ({ menuId, name }: { menuId: number; name: string }) =>
+      menusApi.update(menuId, name),
+    onSuccess: () => void invalidateMenus(),
+    onSettled: () => setEditingMenuId(null),
+  });
+  const saveMenuRename = (menuId: number) => {
+    const name = editingMenuName.trim();
+    if (!name) return; // como el original: si queda vacío, no se cierra el campo
+    renameMenuMutation.mutate({ menuId, name });
   };
 
-  const deleteMenu = async () => {
-    if (!deleteMenuConfirm) return;
-    setDeletingMenu(true);
-    try {
-      await menusApi.remove(deleteMenuConfirm.id);
-      const remaining = menus.filter((m) => m.id !== deleteMenuConfirm.id);
-      setMenus(remaining);
-      if (activeMenuId === deleteMenuConfirm.id) {
-        setActiveMenuId(remaining[0]?.id ?? null);
-      }
+  const deleteMenuMutation = useMutation({
+    mutationFn: (menuId: number) => menusApi.remove(menuId),
+    onSuccess: () => {
+      void invalidateMenus();
       setDeleteMenuConfirm(null);
-    } finally {
-      setDeletingMenu(false);
-    }
+    },
+  });
+  const deleteMenu = () => {
+    if (deleteMenuConfirm) deleteMenuMutation.mutate(deleteMenuConfirm.id);
   };
 
   // ── Dish actions ──
-  const deleteDish = async () => {
-    if (!deleteDishConfirm) return;
-    setDeletingDish(true);
-    try {
-      await dishesApi.remove(deleteDishConfirm.id);
-      setMenus((prev) =>
-        prev.map((m) => ({
-          ...m,
-          dishes: m.dishes.filter((d) => d.id !== deleteDishConfirm.id),
-        })),
-      );
+  const deleteDishMutation = useMutation({
+    mutationFn: (dishId: number) => dishesApi.remove(dishId),
+    onSuccess: () => {
+      void invalidateMenus();
       setDeleteDishConfirm(null);
-    } finally {
-      setDeletingDish(false);
-    }
+    },
+  });
+  const deleteDish = () => {
+    if (deleteDishConfirm) deleteDishMutation.mutate(deleteDishConfirm.id);
   };
 
   // ── Section actions ──
-  const createSection = async () => {
-    const name = newSectionName.trim();
-    if (!name) return;
-    setAddingSection(true);
-    setSectionError("");
-    try {
-      const section = await menuSectionsApi.create(instId, name);
-      setSections((prev) => [...prev, section]);
+  const createSectionMutation = useMutation({
+    mutationFn: (name: string) => menuSectionsApi.create(instId, name),
+    onSuccess: () => {
+      void invalidateSections();
       setNewSectionName("");
-    } catch (err) {
-      setSectionError(getErrorMessage(err, "No se pudo crear la sección"));
-    } finally {
-      setAddingSection(false);
-    }
+      setSectionError("");
+    },
+    onError: (err) =>
+      setSectionError(getErrorMessage(err, "No se pudo crear la sección")),
+  });
+  const createSection = () => {
+    const name = newSectionName.trim();
+    if (name) createSectionMutation.mutate(name);
   };
 
-  const saveSectionRename = async (section: MenuSection) => {
-    const name = editingSectionName.trim();
-    if (!name || name === section.name) {
+  const renameSectionMutation = useMutation({
+    mutationFn: ({
+      id,
+      newName,
+    }: {
+      id: number;
+      oldName: string;
+      newName: string;
+    }) => menuSectionsApi.update(id, { name: newName }),
+    onSuccess: (_updated, { oldName, newName }) => {
+      void invalidateSections();
+      // Los platos que usaban el nombre anterior se renombran solos en el
+      // backend; con invalidar "menus" basta para reflejarlo aquí también.
+      void invalidateMenus();
+      setCategoryFilter((current) => (current === oldName ? newName : current));
+    },
+    onError: (err) =>
+      setSectionError(getErrorMessage(err, "No se pudo renombrar la sección")),
+    onSettled: () => setEditingSectionId(null),
+  });
+  const saveSectionRename = (section: MenuSection) => {
+    const newName = editingSectionName.trim();
+    if (!newName || newName === section.name) {
       setEditingSectionId(null);
       return;
     }
-    try {
-      const updated = await menuSectionsApi.update(section.id, { name });
-      setSections((prev) =>
-        prev.map((s) => (s.id === section.id ? updated : s)),
-      );
-      // Los platos que usaban el nombre anterior se renombran solos en el
-      // backend; reflejamos ese cambio también aquí para no tener que
-      // recargar toda la carta.
-      setMenus((prev) =>
-        prev.map((m) => ({
-          ...m,
-          dishes: m.dishes.map((d) =>
-            d.category === section.name ? { ...d, category: name } : d,
-          ),
-        })),
-      );
-      if (categoryFilter === section.name) setCategoryFilter(name);
-    } catch (err) {
-      setSectionError(getErrorMessage(err, "No se pudo renombrar la sección"));
-    } finally {
-      setEditingSectionId(null);
-    }
+    renameSectionMutation.mutate({
+      id: section.id,
+      oldName: section.name,
+      newName,
+    });
   };
 
-  const moveSection = async (section: MenuSection, direction: -1 | 1) => {
+  const moveSectionMutation = useMutation({
+    mutationFn: async ({
+      section,
+      swapWith,
+    }: {
+      section: MenuSection;
+      swapWith: MenuSection;
+    }) => {
+      await Promise.all([
+        menuSectionsApi.update(section.id, { position: swapWith.position }),
+        menuSectionsApi.update(swapWith.id, { position: section.position }),
+      ]);
+    },
+    onSuccess: () => void invalidateSections(),
+  });
+  const moveSection = (section: MenuSection, direction: -1 | 1) => {
     const ordered = [...sections].sort((a, b) => a.position - b.position);
     const idx = ordered.findIndex((s) => s.id === section.id);
     const swapWith = ordered[idx + direction];
     if (!swapWith) return;
     setReorderingId(section.id);
-    try {
-      const [a, b] = await Promise.all([
-        menuSectionsApi.update(section.id, { position: swapWith.position }),
-        menuSectionsApi.update(swapWith.id, { position: section.position }),
-      ]);
-      setSections((prev) =>
-        prev.map((s) => {
-          if (s.id === a.id) return a;
-          if (s.id === b.id) return b;
-          return s;
-        }),
-      );
-    } finally {
-      setReorderingId(null);
-    }
+    moveSectionMutation.mutate(
+      { section, swapWith },
+      { onSettled: () => setReorderingId(null) },
+    );
   };
 
-  const deleteSection = async () => {
-    if (!deleteSectionConfirm) return;
-    setDeletingSection(true);
-    try {
-      await menuSectionsApi.remove(deleteSectionConfirm.id);
-      setSections((prev) =>
-        prev.filter((s) => s.id !== deleteSectionConfirm.id),
+  const deleteSectionMutation = useMutation({
+    mutationFn: (section: MenuSection) => menuSectionsApi.remove(section.id),
+    onSuccess: (_data, section) => {
+      void invalidateSections();
+      // Los platos de esa sección quedan sin sección (no se borran); lo
+      // refleja el propio refetch de "menus".
+      void invalidateMenus();
+      setCategoryFilter((current) =>
+        current === section.name ? "Todos" : current,
       );
-      // Los platos de esa sección quedan sin sección (no se borran).
-      setMenus((prev) =>
-        prev.map((m) => ({
-          ...m,
-          dishes: m.dishes.map((d) =>
-            d.category === deleteSectionConfirm.name
-              ? { ...d, category: "" }
-              : d,
-          ),
-        })),
-      );
-      if (categoryFilter === deleteSectionConfirm.name) {
-        setCategoryFilter("Todos");
-      }
       setDeleteSectionConfirm(null);
-    } finally {
-      setDeletingSection(false);
-    }
+    },
+  });
+  const deleteSection = () => {
+    if (deleteSectionConfirm)
+      deleteSectionMutation.mutate(deleteSectionConfirm);
   };
 
   const orderedSections = useMemo(
@@ -438,10 +418,12 @@ export default function MenuManager() {
                 <button
                   type="button"
                   onClick={createSection}
-                  disabled={!newSectionName.trim() || addingSection}
+                  disabled={
+                    !newSectionName.trim() || createSectionMutation.isPending
+                  }
                   className="flex items-center gap-1 px-3 py-1.5 bg-teal-600 hover:bg-teal-500 disabled:opacity-40 text-white text-xs font-bold rounded-lg transition-colors"
                 >
-                  {addingSection ? (
+                  {createSectionMutation.isPending ? (
                     <Spinner className="w-3.5 h-3.5" />
                   ) : (
                     <Icon
@@ -537,10 +519,10 @@ export default function MenuManager() {
                 />
                 <button
                   onClick={createMenu}
-                  disabled={!newMenuName.trim() || creatingMenu}
+                  disabled={!newMenuName.trim() || createMenuMutation.isPending}
                   className="px-3 py-2.5 bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 hover:border-teal-400 dark:hover:border-teal-500/50 hover:bg-teal-50 dark:hover:bg-teal-500/10 disabled:opacity-40 text-zinc-600 dark:text-zinc-400 hover:text-teal-800 dark:hover:text-teal-300 rounded-xl transition-colors"
                 >
-                  {creatingMenu ? (
+                  {createMenuMutation.isPending ? (
                     <Spinner className="w-4 h-4" />
                   ) : (
                     <Icon name="plus" className="w-4 h-4" />
@@ -708,7 +690,7 @@ export default function MenuManager() {
             </>
           }
           confirmLabel="Eliminar"
-          loading={deletingDish}
+          loading={deleteDishMutation.isPending}
           onConfirm={deleteDish}
           onCancel={() => setDeleteDishConfirm(null)}
         />
@@ -728,7 +710,7 @@ export default function MenuManager() {
             </>
           }
           confirmLabel="Eliminar"
-          loading={deletingMenu}
+          loading={deleteMenuMutation.isPending}
           onConfirm={deleteMenu}
           onCancel={() => setDeleteMenuConfirm(null)}
         />
@@ -749,7 +731,7 @@ export default function MenuManager() {
             </>
           }
           confirmLabel="Eliminar sección"
-          loading={deletingSection}
+          loading={deleteSectionMutation.isPending}
           onConfirm={deleteSection}
           onCancel={() => setDeleteSectionConfirm(null)}
         />
