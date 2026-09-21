@@ -4,9 +4,16 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Clock } from "lucide-react";
 import { ordersApi, type Order, type OrderStatus } from "../../api";
 import { useRestaurantInstance } from "../../hooks/useRestaurantInstance";
-import ConfirmDialog from "../../components/ConfirmDialog";
 import { Icon } from "../../components/icons";
 import { getErrorMessage } from "../../utils/errors";
+import { NEXT_ACTION } from "../../utils/orderStatus";
+import {
+  OrderCardHeader,
+  OrderItemsList,
+  OrderNotesBox,
+  OrderAdvanceButton,
+  CancelOrderConfirmDialog,
+} from "../../components/OrderTicketParts";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -17,60 +24,44 @@ const CLOCK_TICK_MS = 15000;
 // Cuánto tiempo se resalta un pedido recién llegado a "Nuevos"
 const NEW_ORDER_HIGHLIGHT_MS = 10000;
 
+type ColumnKey = "KITCHEN" | "READY";
+
 type Column = {
-  status: OrderStatus;
+  key: ColumnKey;
+  statuses: OrderStatus[];
   title: string;
   emptyLabel: string;
   accent: string; // color de la barra superior de la columna
+  span: string; // ancho de la columna dentro de la rejilla de 4 columnas
+  grid: string; // clases de layout (columns-*) de los tickets dentro de esta columna
 };
 
-// "Nuevos" (PENDING) son pedidos creados pero que todavía NO se han enviado
-// a cocina: solo pasan a "En preparación" (IN_PROGRESS) cuando alguien pulsa
-// "Enviar a cocina" en el pedido (o "Empezar" aquí mismo). Nunca ocurre de
-// forma automática al crear el pedido.
 const ACTIVE_STATUSES: OrderStatus[] = ["PENDING", "IN_PROGRESS", "READY"];
 
 const COLUMNS: Column[] = [
   {
-    status: "PENDING",
-    title: "Nuevos · sin enviar",
-    emptyLabel: "No hay pedidos nuevos",
-    accent: "bg-amber-500",
-  },
-  {
-    status: "IN_PROGRESS",
-    title: "En preparación",
-    emptyLabel: "Nada en preparación",
+    key: "KITCHEN",
+    statuses: ["PENDING", "IN_PROGRESS"],
+    title: "En cocina",
+    emptyLabel: "No hay comandas en cocina",
     accent: "bg-blue-500",
+    span: "md:col-span-3",
+    // Ocupa 3/4 del ancho. Layout de columnas tipo mampostería/masonry (en
+    // vez de un grid clásico): cada ticket ocupa solo el alto que necesita,
+    // así un pedido de 1 plato no deja el mismo hueco vacío que uno de 20.
+    grid: "columns-1 sm:columns-2 lg:columns-3 xl:columns-4 2xl:columns-5 min-[1920px]:columns-6 min-[2560px]:columns-8",
   },
   {
-    status: "READY",
-    title: "Listos para servir",
+    key: "READY",
+    statuses: ["READY"],
+    title: "Listo",
     emptyLabel: "Nada listo todavía",
     accent: "bg-emerald-500",
+    span: "md:col-span-1",
+    // Ocupa solo 1/4 del ancho: con una columna de tickets es suficiente.
+    grid: "grid-cols-1",
   },
 ];
-
-/** Botón de acción principal de cada ticket, según su estado actual. */
-const NEXT_ACTION: Partial<
-  Record<OrderStatus, { next: OrderStatus; label: string; classes: string }>
-> = {
-  PENDING: {
-    next: "IN_PROGRESS",
-    label: "Empezar",
-    classes: "bg-blue-600 hover:bg-blue-500 text-white",
-  },
-  IN_PROGRESS: {
-    next: "READY",
-    label: "Listo",
-    classes: "bg-emerald-600 hover:bg-emerald-500 text-white",
-  },
-  READY: {
-    next: "DELIVERED",
-    label: "Entregado",
-    classes: "bg-teal-600 hover:bg-teal-500 text-white",
-  },
-};
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -123,77 +114,54 @@ function OrderTicket({
 
   return (
     <div
-      className={`rounded-2xl border bg-white dark:bg-zinc-900 p-5 flex flex-col gap-3 transition-shadow ${
+      className={`break-inside-avoid mb-3 relative rounded-2xl border bg-white dark:bg-zinc-900 p-4 flex flex-col gap-2.5 ${
         isNew
-          ? "border-amber-300 dark:border-amber-400/60 shadow-[0_0_0_2px_rgba(251,191,36,0.25)] animate-pulse"
+          ? "border-amber-300 dark:border-amber-400/60"
           : "border-zinc-200 dark:border-zinc-800"
       }`}
     >
+      {/* Solo el borde parpadea para avisar de que es un pedido nuevo: si
+          animásemos toda la tarjeta (opacidad/sombra), el parpadeo dificulta
+          leer los platos justo cuando más urge leerlos. Esta capa va encima,
+          sin bloquear clics, y no afecta al contenido de debajo. */}
+      {isNew && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -inset-px rounded-2xl border-2 border-amber-400 dark:border-amber-400/70 animate-pulse"
+        />
+      )}
       {/* Cabecera del ticket: mesa + tiempo */}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-3xl font-black text-zinc-900 dark:text-zinc-100 leading-none">
-            {order.tableNumber}
-          </p>
-          <p className="text-[11px] text-zinc-500 mt-1">
+      <OrderCardHeader
+        order={order}
+        meta={
+          <>
             #{order.id} · {order.waiterName}
-          </p>
-        </div>
-        <span
-          className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold tabular-nums ${urgencyClasses(minutes)}`}
-        >
-          {formatElapsed(minutes)}
-        </span>
-      </div>
+          </>
+        }
+        badge={formatElapsed(minutes)}
+        badgeClassName={urgencyClasses(minutes)}
+      />
 
       {/* Platos */}
-      <div className="space-y-1.5 border-t border-zinc-200 dark:border-zinc-800 pt-3">
-        {order.items.map((item) => (
-          <div key={item.id} className="flex items-baseline gap-2">
-            <span className="shrink-0 min-w-7 text-center text-sm font-bold text-zinc-900 dark:text-zinc-100 bg-zinc-100 dark:bg-zinc-800 rounded px-1.5">
-              {item.quantity}
-            </span>
-            <span className="text-base text-zinc-800 dark:text-zinc-200 leading-snug">
-              {item.dishName}
-            </span>
-          </div>
-        ))}
+      <div className="border-t border-zinc-200 dark:border-zinc-800 pt-2.5">
+        <OrderItemsList items={order.items} />
       </div>
 
       {/* Notas / alergias */}
-      {order.notes && (
-        <div className="flex items-start gap-2 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25 rounded-lg px-3 py-2">
-          <Icon
-            name="warningTriangle"
-            className="w-4 h-4 text-red-700 dark:text-red-400 shrink-0 mt-0.5"
-            strokeWidth={2}
-          />
-          <p className="text-sm text-red-800 dark:text-red-300 leading-snug">
-            {order.notes}
-          </p>
-        </div>
-      )}
+      {order.notes && <OrderNotesBox notes={order.notes} />}
 
-      {/* Acciones */}
-      <div className="flex items-center gap-2 pt-1">
-        {action && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={onAdvance}
-            className={`flex-1 py-4 rounded-xl text-base font-bold transition-colors disabled:opacity-50 ${action.classes}`}
-          >
-            {busy ? "…" : action.label}
-          </button>
-        )}
+      {/* Acciones: el botón principal ya no ocupa toda la fila ni tiene
+          un tamaño enorme — el mismo tamaño compacto que en OrdersManager. */}
+      <div className="flex items-center gap-1 pt-1">
+        <OrderAdvanceButton action={action} busy={busy} onClick={onAdvance} />
         <button
           type="button"
           disabled={busy}
           onClick={onCancel}
           title="Cancelar pedido"
-          className="shrink-0 p-4 rounded-xl text-zinc-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors disabled:opacity-50"
+          className="ml-auto shrink-0 p-2 rounded-lg text-zinc-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors disabled:opacity-50"
         >
-          <Icon name="close" className="w-5 h-5" strokeWidth={2} />
+          <Icon name="close" className="w-4 h-4" strokeWidth={2} />
         </button>
       </div>
     </div>
@@ -211,6 +179,10 @@ export default function KitchenDisplay() {
   const [busyId, setBusyId] = useState<number | null>(null);
   const [newIds, setNewIds] = useState<Set<number>>(new Set());
   const [cancelConfirm, setCancelConfirm] = useState<Order | null>(null);
+  // Columna "Listo" minimizada: se reduce a una barra lateral que solo
+  // muestra el número de mesa de cada pedido listo, para dejar más sitio
+  // a "En cocina" cuando no hace falta ver el detalle de los pedidos listos.
+  const [readyCollapsed, setReadyCollapsed] = useState(false);
 
   const knownIds = useRef<Set<number> | null>(null);
 
@@ -306,18 +278,16 @@ export default function KitchenDisplay() {
     }
   };
 
-  // ── Agrupar por columna, más antiguos primero ──
-  const byStatus = useMemo(() => {
-    const grouped: Record<OrderStatus, Order[]> = {
-      PENDING: [],
-      IN_PROGRESS: [],
-      READY: [],
-      DELIVERED: [],
-      CANCELLED: [],
-    };
-    for (const order of orders) grouped[order.status].push(order);
-    for (const status of Object.keys(grouped) as OrderStatus[]) {
-      grouped[status].sort(
+  // ── Agrupar por columna (KITCHEN = PENDING + IN_PROGRESS, READY = READY),
+  //    más antiguos primero ──
+  const byColumn = useMemo(() => {
+    const grouped: Record<ColumnKey, Order[]> = { KITCHEN: [], READY: [] };
+    for (const order of orders) {
+      const column = COLUMNS.find((c) => c.statuses.includes(order.status));
+      if (column) grouped[column.key].push(order);
+    }
+    for (const key of Object.keys(grouped) as ColumnKey[]) {
+      grouped[key].sort(
         (a, b) =>
           new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
       );
@@ -362,39 +332,45 @@ export default function KitchenDisplay() {
       </div>
 
       {/* Tablero */}
-      <div className="flex-1 overflow-hidden grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-zinc-200 dark:divide-zinc-800">
-        {COLUMNS.map((column) => {
-          const columnOrders = byStatus[column.status];
+      <div
+        className={`flex-1 overflow-hidden grid grid-cols-1 ${
+          readyCollapsed ? "md:grid-cols-[1fr_4rem]" : "md:grid-cols-4"
+        } divide-y md:divide-y-0 md:divide-x divide-zinc-200 dark:divide-zinc-800`}
+      >
+        {(() => {
+          const kitchen = COLUMNS[0];
+          const kitchenOrders = byColumn[kitchen.key];
           return (
-            <div key={column.status} className="flex flex-col min-h-0">
-              {/* Cabecera de columna */}
+            <div
+              className={`flex flex-col min-h-0 ${readyCollapsed ? "" : "md:col-span-3"}`}
+            >
               <div className="shrink-0">
-                <div className={`h-1 ${column.accent}`} />
+                <div className={`h-1 ${kitchen.accent}`} />
                 <div className="flex items-center justify-between px-4 py-4">
                   <h2 className="text-base font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-wide">
-                    {column.title}
+                    {kitchen.title}
                   </h2>
                   <span className="text-sm font-bold text-zinc-500 bg-zinc-100 dark:bg-zinc-800 rounded-full px-2.5 py-0.5 tabular-nums">
-                    {columnOrders.length}
+                    {kitchenOrders.length}
                   </span>
                 </div>
               </div>
-
-              {/* Tickets */}
-              <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-3">
+              <div
+                className={`flex-1 overflow-y-auto px-4 pb-4 ${kitchen.grid} gap-3`}
+              >
                 {loading ? (
                   [1, 2].map((i) => (
                     <div
                       key={i}
-                      className="h-40 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl animate-pulse"
+                      className="break-inside-avoid mb-3 h-40 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl animate-pulse"
                     />
                   ))
-                ) : columnOrders.length === 0 ? (
+                ) : kitchenOrders.length === 0 ? (
                   <p className="text-sm text-zinc-600 text-center py-10">
-                    {column.emptyLabel}
+                    {kitchen.emptyLabel}
                   </p>
                 ) : (
-                  columnOrders.map((order) => (
+                  kitchenOrders.map((order) => (
                     <OrderTicket
                       key={order.id}
                       order={order}
@@ -409,23 +385,118 @@ export default function KitchenDisplay() {
               </div>
             </div>
           );
-        })}
+        })()}
+
+        {/* Columna "Listo": minimizable a una barra lateral con solo el
+            número de mesa de cada pedido, para saber de un vistazo qué
+            mesas están listas sin ocupar el espacio de una columna entera. */}
+        {(() => {
+          const ready = COLUMNS[1];
+          const readyOrders = byColumn[ready.key];
+
+          if (readyCollapsed) {
+            return (
+              <div className="flex flex-col min-h-0 bg-zinc-50 dark:bg-zinc-950/40">
+                <div className={`h-1 ${ready.accent}`} />
+                <button
+                  type="button"
+                  onClick={() => setReadyCollapsed(false)}
+                  title="Mostrar el detalle de los pedidos listos"
+                  className="shrink-0 w-full flex flex-row md:flex-col items-center justify-center gap-2 md:gap-1 px-4 md:px-2 py-2.5 md:py-4 border-b border-zinc-200 dark:border-zinc-800 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors"
+                >
+                  <Icon
+                    name="chevronLeft"
+                    className="w-4 h-4 rotate-90 md:rotate-0"
+                    strokeWidth={2}
+                  />
+                  <span className="text-[10px] font-bold uppercase tracking-wide">
+                    Listo
+                  </span>
+                  <span className="text-xs font-bold tabular-nums">
+                    {readyOrders.length}
+                  </span>
+                </button>
+                {/* `justify-start` (no `justify-center`): así los números se
+                    apilan de arriba hacia abajo desde el principio de la
+                    columna, en vez de agruparse centrados a media altura. */}
+                <div className="flex-1 overflow-y-auto flex flex-row md:flex-col flex-wrap items-center justify-start gap-1.5 p-2">
+                  {readyOrders.map((order) => (
+                    <div
+                      key={order.id}
+                      title={`Mesa ${order.tableNumber} lista`}
+                      className="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 text-sm font-black tabular-nums"
+                    >
+                      {order.tableNumber}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div className="flex flex-col min-h-0 md:col-span-1">
+              <div className="shrink-0">
+                <div className={`h-1 ${ready.accent}`} />
+                <div className="flex items-center justify-between px-4 py-4">
+                  <h2 className="text-base font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-wide">
+                    {ready.title}
+                  </h2>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-zinc-500 bg-zinc-100 dark:bg-zinc-800 rounded-full px-2.5 py-0.5 tabular-nums">
+                      {readyOrders.length}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setReadyCollapsed(true)}
+                      title="Minimizar a barra lateral"
+                      className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                    >
+                      <Icon
+                        name="chevronRight"
+                        className="w-4 h-4"
+                        strokeWidth={2}
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div
+                className={`flex-1 overflow-y-auto px-4 pb-4 grid ${ready.grid} items-start gap-3 auto-rows-min`}
+              >
+                {loading ? (
+                  [1, 2].map((i) => (
+                    <div
+                      key={i}
+                      className="h-40 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl animate-pulse"
+                    />
+                  ))
+                ) : readyOrders.length === 0 ? (
+                  <p className="col-span-full text-sm text-zinc-600 text-center py-10">
+                    {ready.emptyLabel}
+                  </p>
+                ) : (
+                  readyOrders.map((order) => (
+                    <OrderTicket
+                      key={order.id}
+                      order={order}
+                      now={now}
+                      isNew={newIds.has(order.id)}
+                      busy={busyId === order.id}
+                      onAdvance={() => void advanceOrder(order)}
+                      onCancel={() => setCancelConfirm(order)}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {cancelConfirm && (
-        <ConfirmDialog
-          title="¿Cancelar pedido?"
-          message={
-            <>
-              Se cancelará el pedido de la{" "}
-              <span className="text-zinc-700 dark:text-zinc-300 font-medium">
-                Mesa {cancelConfirm.tableNumber}
-              </span>
-              . Esta acción no se puede deshacer.
-            </>
-          }
-          confirmLabel="Cancelar pedido"
-          cancelLabel="Volver"
+        <CancelOrderConfirmDialog
+          order={cancelConfirm}
           loading={busyId === cancelConfirm.id}
           onConfirm={() => void cancelOrder(cancelConfirm)}
           onCancel={() => setCancelConfirm(null)}

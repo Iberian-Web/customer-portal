@@ -282,14 +282,7 @@ export default function DishForm() {
                     placeholder="9.50"
                   />
                 </Field>
-                <Field
-                  label="Sección de la carta"
-                  hint={
-                    sections.length === 0
-                      ? undefined
-                      : "· gestiónalas en la carta"
-                  }
-                >
+                <Field label="Sección">
                   <select
                     className={getInputClass()}
                     value={form.category}
@@ -349,7 +342,7 @@ export default function DishForm() {
                 className="flex items-center justify-center gap-2 px-4 py-3 text-red-700 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-400/10 border border-red-200 dark:border-red-500/20 hover:border-red-300 dark:hover:border-red-500/40 text-sm font-medium rounded-xl transition-colors"
               >
                 <Icon name="trash" strokeWidth={1.8} />
-                Eliminar plato
+                Eliminar
               </button>
             )}
             <div className="flex flex-col sm:flex-row gap-2.5 sm:ml-auto">
@@ -363,7 +356,7 @@ export default function DishForm() {
                 {submitMutation.isPending
                   ? "Guardando…"
                   : isEdit
-                    ? "Guardar cambios"
+                    ? "Guardar"
                     : "Crear plato"}
               </button>
               <button

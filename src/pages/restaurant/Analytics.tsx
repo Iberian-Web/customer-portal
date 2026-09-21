@@ -141,10 +141,15 @@ export default function Analytics() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         <StatCard
           label="Ingresos totales"
           value={money(data.revenue.total)}
+          color="text-teal-700 dark:text-teal-400"
+        />
+        <StatCard
+          label="Facturado hoy"
+          value={money(data.revenue.today)}
           color="text-teal-700 dark:text-teal-400"
         />
         <StatCard

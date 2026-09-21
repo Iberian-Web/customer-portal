@@ -20,3 +20,32 @@ export const STATUS_STYLES: Record<OrderStatus, string> = {
   CANCELLED:
     "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 ring-1 ring-red-200 dark:ring-red-500/20",
 };
+
+// ─── Próximo estado del ciclo de vida de un pedido ─────────────────────────
+// Compartido entre OrdersManager y KitchenDisplay: avanzar un pedido es el
+// mismo paso lo mires desde donde lo mires (p. ej. "En cocina" → "Listo"),
+// así que el botón, su etiqueta y su color deben ser siempre los mismos
+// estén en la pantalla que estén — un único sitio donde cambiarlos.
+export type NextAction = {
+  next: OrderStatus;
+  label: string;
+  className: string;
+};
+
+export const NEXT_ACTION: Partial<Record<OrderStatus, NextAction>> = {
+  PENDING: {
+    next: "READY",
+    label: "Listo",
+    className: "bg-emerald-600 hover:bg-emerald-500 text-white",
+  },
+  IN_PROGRESS: {
+    next: "READY",
+    label: "Listo",
+    className: "bg-emerald-600 hover:bg-emerald-500 text-white",
+  },
+  READY: {
+    next: "DELIVERED",
+    label: "Entregado",
+    className: "bg-teal-600 hover:bg-teal-500 text-white",
+  },
+};

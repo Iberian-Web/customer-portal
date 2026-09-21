@@ -9,11 +9,15 @@ import {
   Search,
   ChevronUp,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ArrowLeft,
   AlertTriangle,
   AlertCircle,
   Users,
   Loader2,
+  Filter,
+  Check,
   type LucideIcon,
 } from "lucide-react";
 
@@ -25,10 +29,14 @@ const ICONS = {
   search: Search,
   chevronUp: ChevronUp,
   chevronDown: ChevronDown,
+  chevronLeft: ChevronLeft,
+  chevronRight: ChevronRight,
   arrowLeft: ArrowLeft,
   warningTriangle: AlertTriangle,
   warningCircle: AlertCircle,
   users: Users,
+  filter: Filter,
+  check: Check,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

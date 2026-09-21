@@ -1,7 +1,7 @@
 // customer-portal/src/pages/restaurant/OrderForm.tsx
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   ordersApi,
   menusApi,
@@ -65,6 +65,7 @@ const emptyForm: FormData = {
 
 export default function OrderForm() {
   const { orderId } = useParams<{ orderId?: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const instance = useRestaurantInstance();
   const { access } = useAuth();
@@ -78,7 +79,14 @@ export default function OrderForm() {
   const [initialized, setInitialized] = useState(false);
 
   // ── Form state ──
-  const [form, setForm] = useState<FormData>(emptyForm);
+  // Si venimos de "Nuevo pedido para esta mesa" (una comanda anterior ya
+  // cerrada, entregada o cancelada), la mesa llega en ?table= y se
+  // precarga: así se abre un pedido nuevo e independiente para la misma
+  // mesa en vez de reabrir o mezclar los platos con la comanda ya cerrada.
+  const prefilledTable = !isEdit ? searchParams.get("table") : null;
+  const [form, setForm] = useState<FormData>(
+    prefilledTable ? { ...emptyForm, tableNumber: prefilledTable } : emptyForm,
+  );
   const [fieldErrors, setFieldErrors] = useState<FormErrors>({});
   const [savingKind, setSavingKind] = useState<"save" | "send" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -265,27 +273,17 @@ export default function OrderForm() {
   };
 
   /**
-   * Guarda el pedido. `sendToKitchen`:
-   *  - En un pedido nuevo: lo crea y lo manda directamente a cocina
-   *    (IN_PROGRESS) en la misma acción, sin tener que volver al listado.
-   *  - Al editar un pedido que seguía "Nuevo" (PENDING), lo guarda y además
-   *    lo envía a cocina.
+   * Guarda el pedido. Un pedido nuevo entra siempre directamente en cocina
+   * (IN_PROGRESS) — ya no existe la opción de guardarlo "sin enviar". Al
+   * editar un pedido ya existente esto solo actualiza sus datos/platos: el
+   * estado de cocina se gestiona desde el listado de pedidos, no aquí.
    * El camarero/a NUNCA se envía desde este formulario: lo asocia el
    * backend a partir de la sesión de quien ha iniciado sesión.
    */
   const submitMutation = useMutation({
-    mutationFn: async ({
-      payload,
-      sendToKitchen,
-    }: {
-      payload: OrderCreate;
-      sendToKitchen: boolean;
-    }) => {
+    mutationFn: async (payload: OrderCreate) => {
       if (isEdit) {
         await ordersApi.update(Number(orderId), payload);
-        if (sendToKitchen && order?.status === "PENDING") {
-          await ordersApi.updateStatus(Number(orderId), "IN_PROGRESS");
-        }
       } else {
         await ordersApi.create(id, payload);
       }
@@ -302,7 +300,7 @@ export default function OrderForm() {
     onSettled: () => setSavingKind(null),
   });
 
-  const submit = (sendToKitchen: boolean) => {
+  const submit = () => {
     if (!validate()) return;
 
     const payload: OrderCreate = {
@@ -313,12 +311,11 @@ export default function OrderForm() {
         quantity: Number(it.quantity) || 1,
         unitPrice: Number(it.unitPrice) || 0,
       })),
-      ...(sendToKitchen && !isEdit ? { sendToKitchen: true } : {}),
     };
 
-    setSavingKind(sendToKitchen ? "send" : "save");
+    setSavingKind(!isEdit ? "send" : "save");
     setError(null);
-    submitMutation.mutate({ payload, sendToKitchen });
+    submitMutation.mutate(payload);
   };
 
   // ── Delete ────────────────────────────────────────────────────────────────
@@ -338,10 +335,6 @@ export default function OrderForm() {
   const handleDelete = () => {
     if (order) deleteMutation.mutate();
   };
-
-  // Se puede "enviar a cocina" directamente si es un pedido nuevo, o si es
-  // una edición de un pedido que todavía no se había enviado (PENDING).
-  const canSendToKitchen = !isEdit || order?.status === "PENDING";
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -366,7 +359,7 @@ export default function OrderForm() {
               <p className="mt-1">Esta acción no se puede deshacer.</p>
             </>
           }
-          confirmLabel="Eliminar pedido"
+          confirmLabel="Eliminar"
           loading={deleteMutation.isPending}
           onConfirm={handleDelete}
           onCancel={() => setShowDeleteConfirm(false)}
@@ -376,13 +369,21 @@ export default function OrderForm() {
       <div className="px-4 sm:px-8 py-8 w-full">
         <FormPageHeader
           onBack={goBack}
-          title={isEdit ? `Pedido #${order?.id}` : "Nuevo pedido"}
+          title={
+            isEdit
+              ? `Pedido #${order?.id}`
+              : prefilledTable
+                ? `Nuevo pedido — Mesa ${prefilledTable}`
+                : "Nuevo pedido"
+          }
           subtitle={
             access?.waiterName
               ? `Camarero/a: ${access.waiterName}`
               : isEdit
                 ? "Edita los datos y los platos del pedido"
-                : "Toca la mesa y añade platos de la carta"
+                : prefilledTable
+                  ? "Pedido nuevo e independiente para esta mesa: no afecta a la comanda anterior."
+                  : "Toca la mesa y añade platos de la carta"
           }
           right={
             order && (
@@ -492,15 +493,15 @@ export default function OrderForm() {
                     Ningún plato coincide con «{dishSearch}».
                   </p>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-3">
                     {dishIndex.map((dish) => (
                       <button
                         key={dish.id}
                         type="button"
                         onClick={() => handleAddDish(dish.name, dish.price)}
-                        className="flex flex-col items-start gap-2 px-4 py-4 min-h-22 bg-zinc-50 dark:bg-zinc-950/50 hover:bg-teal-50 dark:hover:bg-teal-500/10 active:bg-teal-500/20 border border-zinc-200 dark:border-zinc-800 hover:border-teal-400 dark:hover:border-teal-500/50 rounded-2xl text-left transition-colors"
+                        className="flex flex-col items-start gap-2 px-4 py-4 min-h-22 min-w-0 bg-zinc-50 dark:bg-zinc-950/50 hover:bg-teal-50 dark:hover:bg-teal-500/10 active:bg-teal-500/20 border border-zinc-200 dark:border-zinc-800 hover:border-teal-400 dark:hover:border-teal-500/50 rounded-2xl text-left transition-colors"
                       >
-                        <span className="text-base text-zinc-900 dark:text-zinc-100 font-semibold leading-snug line-clamp-2">
+                        <span className="w-full text-base text-zinc-900 dark:text-zinc-100 font-semibold leading-snug line-clamp-2 break-words">
                           {dish.name}
                         </span>
                         <span className="text-sm text-zinc-600 dark:text-zinc-400 tabular-nums">
@@ -656,29 +657,24 @@ export default function OrderForm() {
             )}
 
             <div className="flex flex-col gap-2.5">
-              {canSendToKitchen && (
-                <button
-                  type="button"
-                  onClick={() => submit(true)}
-                  disabled={!!savingKind}
-                  className="flex items-center justify-center gap-2 px-5 py-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-base font-bold rounded-xl transition-colors"
-                >
-                  {savingKind === "send" && <Spinner />}
-                  {savingKind === "send" ? "Enviando…" : "Enviar a cocina"}
-                </button>
-              )}
               <button
                 type="button"
-                onClick={() => submit(false)}
+                onClick={submit}
                 disabled={!!savingKind}
-                className="flex items-center justify-center gap-2 px-5 py-4 bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white text-base font-semibold rounded-xl transition-colors"
+                className={`flex items-center justify-center gap-2 px-5 py-4 disabled:opacity-50 text-white text-base font-bold rounded-xl transition-colors ${
+                  !isEdit
+                    ? "bg-blue-600 hover:bg-blue-500"
+                    : "bg-teal-600 hover:bg-teal-500"
+                }`}
               >
-                {savingKind === "save" && <Spinner />}
-                {savingKind === "save"
-                  ? "Guardando…"
-                  : isEdit
-                    ? "Guardar cambios"
-                    : "Guardar como nuevo (sin enviar)"}
+                {savingKind && <Spinner />}
+                {savingKind
+                  ? !isEdit
+                    ? "Enviando…"
+                    : "Guardando…"
+                  : !isEdit
+                    ? "Enviar a cocina"
+                    : "Guardar"}
               </button>
               <button
                 type="button"
@@ -694,7 +690,7 @@ export default function OrderForm() {
                   className="flex items-center justify-center gap-2 px-4 py-3 text-red-700 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-400/10 border border-red-200 dark:border-red-500/20 hover:border-red-300 dark:hover:border-red-500/40 text-sm font-medium rounded-xl transition-colors"
                 >
                   <Icon name="trash" strokeWidth={1.8} />
-                  Eliminar pedido
+                  Eliminar
                 </button>
               )}
             </div>

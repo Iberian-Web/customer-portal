@@ -8,8 +8,10 @@ import {
   type ReservationStatus,
 } from "../../api";
 import { useRestaurantInstance } from "../../hooks/useRestaurantInstance";
-import ConfirmDialog from "../../components/ConfirmDialog";
-import { Icon } from "../../components/icons";
+import ConfirmDialog, {
+  type ConfirmDialogTone,
+} from "../../components/ConfirmDialog";
+import { Icon, type IconName } from "../../components/icons";
 import { getErrorMessage } from "../../utils/errors";
 import { toLocalTimeString } from "../../utils/format";
 
@@ -46,6 +48,40 @@ const STATUS_ACCENT: Record<ReservationStatus, string> = {
 };
 
 const ALL_STATUSES = Object.keys(STATUS_LABEL) as ReservationStatus[];
+
+// Título, texto del botón y tono del diálogo de confirmación para cada
+// cambio de estado posible (todos piden confirmación, no solo cancelar
+// y no presentado).
+const STATUS_CONFIRM_CONFIG: Record<
+  ReservationStatus,
+  { title: string; confirmLabel: string; tone: ConfirmDialogTone }
+> = {
+  PENDING: {
+    title: "¿Volver a pendiente?",
+    confirmLabel: "Marcar como pendiente",
+    tone: "warning",
+  },
+  CONFIRMED: {
+    title: "¿Confirmar reserva?",
+    confirmLabel: "Confirmar reserva",
+    tone: "default",
+  },
+  COMPLETED: {
+    title: "¿Marcar como completada?",
+    confirmLabel: "Marcar como completada",
+    tone: "default",
+  },
+  CANCELLED: {
+    title: "¿Cancelar reserva?",
+    confirmLabel: "Cancelar reserva",
+    tone: "danger",
+  },
+  NO_SHOW: {
+    title: "¿Marcar como no presentado?",
+    confirmLabel: "Marcar como no presentado",
+    tone: "warning",
+  },
+};
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -86,24 +122,72 @@ function ReservationCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  // Contacto y acciones de estado quedan ocultos tras "→" para que la
+  // tarjeta, de un vistazo, solo muestre lo esencial (nombre, hora,
+  // comensales, estado).
+  const [expanded, setExpanded] = useState(false);
+
+  // Acciones de estado disponibles para esta reserva, en el orden en que
+  // deben mostrarse. Se listan como datos (en vez de JSX repetido) para
+  // poder distribuirlas en una rejilla pareja de 2 columnas.
+  const statusActions: {
+    status: ReservationStatus;
+    label: string;
+    icon: IconName;
+    className: string;
+  }[] = [];
+  if (r.status === "PENDING") {
+    statusActions.push({
+      status: "CONFIRMED",
+      label: "Confirmar",
+      icon: "check",
+      className:
+        "bg-teal-50 dark:bg-teal-500/10 hover:bg-teal-100 dark:hover:bg-teal-500/20 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-500/20",
+    });
+  }
+  if (r.status === "CONFIRMED") {
+    statusActions.push({
+      status: "COMPLETED",
+      label: "Completada",
+      icon: "check",
+      className:
+        "bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20",
+    });
+  }
+  // "Cancelar" va antes que "No presentado" a propósito: cuando el número
+  // de botones es impar, el último ocupa la fila entera, y "No presentado"
+  // (más largo) aprovecha mejor ese ancho sin partirse en dos líneas.
+  if (!["CANCELLED", "COMPLETED", "NO_SHOW"].includes(r.status)) {
+    statusActions.push({
+      status: "CANCELLED",
+      label: "Cancelar",
+      icon: "close",
+      className:
+        "bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/20",
+    });
+  }
+  if (["PENDING", "CONFIRMED"].includes(r.status)) {
+    statusActions.push({
+      status: "NO_SHOW",
+      label: "No presentado",
+      icon: "warningTriangle",
+      className:
+        "bg-orange-50 dark:bg-orange-500/10 hover:bg-orange-100 dark:hover:bg-orange-500/20 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-500/20",
+    });
+  }
+
   return (
     <div
-      className={`flex flex-col bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 border-l-4 ${STATUS_ACCENT[r.status]} rounded-2xl p-5 gap-3`}
+      className={`flex flex-col bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 border-l-4 ${STATUS_ACCENT[r.status]} rounded-2xl p-4 gap-2.5`}
     >
       {/* Cabecera */}
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p
-            className="font-semibold text-zinc-900 dark:text-zinc-100 truncate"
-            title={r.customerName}
-          >
-            {r.customerName}
-          </p>
-          <p className="text-xs text-zinc-500 mt-1.5 truncate">
-            {r.customerPhone}
-            {r.customerEmail && ` · ${r.customerEmail}`}
-          </p>
-        </div>
+        <p
+          className="min-w-0 font-semibold text-zinc-900 dark:text-zinc-100 truncate"
+          title={r.customerName}
+        >
+          {r.customerName}
+        </p>
         <span
           className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${STATUS_STYLES[r.status]}`}
         >
@@ -112,7 +196,7 @@ function ReservationCard({
       </div>
 
       {/* Fecha / hora / comensales */}
-      <div className="flex items-center justify-between border-t border-zinc-200 dark:border-zinc-800 pt-3">
+      <div className="flex items-center justify-between border-t border-zinc-200 dark:border-zinc-800 pt-2.5">
         <div>
           <p className="text-3xl font-black text-zinc-900 dark:text-zinc-100 leading-none tabular-nums">
             {toLocalTimeString(r.reservationDate)}
@@ -135,66 +219,93 @@ function ReservationCard({
         </div>
       </div>
 
-      {/* Notas */}
+      {/* Notas: mismo formato que en cocina (icono + caja) */}
       {r.notes && (
-        <p className="text-xs text-zinc-600 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1.5 leading-snug">
-          {r.notes}
-        </p>
+        <div className="flex items-start gap-2 bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-2">
+          <Icon
+            name="warningCircle"
+            className="w-4 h-4 text-zinc-500 shrink-0 mt-0.5"
+            strokeWidth={2}
+          />
+          <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-snug">
+            {r.notes}
+          </p>
+        </div>
       )}
 
+      {/* Panel expandible: contacto + acciones de estado.
+          Se usa el truco de `grid-template-rows` 0fr→1fr en vez de un
+          simple `{expanded && ...}` para que abra/cierre con una
+          animación suave en lugar de aparecer/desaparecer de golpe. */}
+      <div
+        className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${
+          expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+        }`}
+      >
+        <div className="overflow-hidden">
+          <div className="border-t border-zinc-200 dark:border-zinc-800 pt-2.5 flex flex-col gap-2.5">
+            <div className="text-xs text-zinc-600 dark:text-zinc-400 space-y-1">
+              {r.customerEmail && <p className="truncate">{r.customerEmail}</p>}
+              <p>{r.customerPhone}</p>
+            </div>
+            {statusActions.length > 0 && (
+              <div className="grid grid-cols-2 gap-2">
+                {statusActions.map((action, i) => (
+                  <button
+                    key={action.status}
+                    disabled={updating}
+                    onClick={() => onStatusChange(action.status)}
+                    className={`flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg border transition-colors disabled:opacity-50 ${action.className} ${
+                      statusActions.length % 2 !== 0 &&
+                      i === statusActions.length - 1
+                        ? "col-span-2"
+                        : ""
+                    }`}
+                  >
+                    <Icon name={action.icon} className="w-3.5 h-3.5" />
+                    {action.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Acciones */}
-      <div className="flex items-center gap-2 flex-wrap mt-auto pt-1">
-        {r.status === "PENDING" && (
-          <button
-            disabled={updating}
-            onClick={() => onStatusChange("CONFIRMED")}
-            className="px-2.5 py-1.5 bg-teal-50 dark:bg-teal-500/10 hover:bg-teal-100 dark:hover:bg-teal-500/20 text-teal-700 dark:text-teal-400 text-xs font-medium rounded-lg border border-teal-200 dark:border-teal-500/20 transition-colors disabled:opacity-50"
-          >
-            Confirmar
-          </button>
-        )}
-        {r.status === "CONFIRMED" && (
-          <button
-            disabled={updating}
-            onClick={() => onStatusChange("COMPLETED")}
-            className="px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs font-medium rounded-lg border border-emerald-200 dark:border-emerald-500/20 transition-colors disabled:opacity-50"
-          >
-            Completada
-          </button>
-        )}
-        {["PENDING", "CONFIRMED"].includes(r.status) && (
-          <button
-            disabled={updating}
-            onClick={() => onStatusChange("NO_SHOW")}
-            className="px-2.5 py-1.5 bg-orange-50 dark:bg-orange-500/10 hover:bg-orange-100 dark:hover:bg-orange-500/20 text-orange-700 dark:text-orange-400 text-xs font-medium rounded-lg border border-orange-200 dark:border-orange-500/20 transition-colors disabled:opacity-50"
-          >
-            No presentado
-          </button>
-        )}
-        {!["CANCELLED", "COMPLETED", "NO_SHOW"].includes(r.status) && (
-          <button
-            disabled={updating}
-            onClick={() => onStatusChange("CANCELLED")}
-            className="px-2.5 py-1.5 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 text-red-700 dark:text-red-400 text-xs font-medium rounded-lg border border-red-200 dark:border-red-500/20 transition-colors disabled:opacity-50"
-          >
-            Cancelar
-          </button>
-        )}
+      <div className="flex items-center gap-1 mt-auto pt-1">
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          title={
+            expanded ? "Ocultar contacto y acciones" : "Ver contacto y acciones"
+          }
+          className={`p-2 rounded-lg transition-colors ${
+            expanded
+              ? "text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-500/10"
+              : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          }`}
+        >
+          <Icon
+            name="chevronRight"
+            className={`w-4 h-4 transition-transform ${expanded ? "rotate-90" : ""}`}
+            strokeWidth={2}
+          />
+        </button>
 
         <div className="ml-auto flex items-center gap-1">
           <button
             onClick={onEdit}
             title="Editar reserva"
-            className="p-3 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors"
+            className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
           >
-            <Icon name="pencil" className="w-5 h-5" strokeWidth={1.8} />
+            <Icon name="pencil" className="w-4 h-4" strokeWidth={1.8} />
           </button>
           <button
             onClick={onDelete}
-            title="Eliminar reserva"
-            className="p-3 text-zinc-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded-xl transition-colors"
+            title="Eliminar"
+            className="p-2 text-zinc-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded-lg transition-colors"
           >
-            <Icon name="trash" className="w-5 h-5" strokeWidth={1.8} />
+            <Icon name="trash" className="w-4 h-4" strokeWidth={1.8} />
           </button>
         </div>
       </div>
@@ -314,18 +425,14 @@ export default function ReservationsManager() {
     statusMutation.mutate({ reservationId: r.id, status: newStatus });
   };
 
-  // "Confirmar" y "Completada" son acciones positivas y se aplican al
-  // momento; "Cancelar" y "No presentado" son difíciles de deshacer, así
-  // que antes piden confirmación con el mismo diálogo que el resto de la app.
+  // Todo cambio de estado (confirmar, completar, cancelar o marcar como no
+  // presentado) pide confirmación con el mismo diálogo que el resto de la
+  // app, en vez de aplicarse al momento.
   const requestStatusChange = (
     r: Reservation,
     newStatus: ReservationStatus,
   ) => {
-    if (newStatus === "CANCELLED" || newStatus === "NO_SHOW") {
-      setStatusConfirm({ reservation: r, status: newStatus });
-    } else {
-      handleStatusChange(r, newStatus);
-    }
+    setStatusConfirm({ reservation: r, status: newStatus });
   };
 
   // ── Delete ────────────────────────────────────────────────────────────────
@@ -380,58 +487,14 @@ export default function ReservationsManager() {
           className="flex items-center gap-2 px-5 py-3 bg-teal-600 hover:bg-teal-500 text-white text-base font-bold rounded-xl transition-colors"
         >
           <Icon name="plus" className="w-5 h-5" />
-          Nueva reserva
+          Reserva
         </button>
       </div>
 
-      {/* Stats */}
-      <div className="flex flex-wrap items-center gap-x-8 gap-y-3 px-5 py-3.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl mb-6">
-        {[
-          {
-            label: "Confirmadas hoy",
-            value: todayReservations.filter((r) => r.status === "CONFIRMED")
-              .length,
-            color: "text-teal-700 dark:text-teal-400",
-          },
-          {
-            label: "Pendientes hoy",
-            value: todayReservations.filter((r) => r.status === "PENDING")
-              .length,
-            color: "text-amber-700 dark:text-amber-400",
-          },
-          {
-            label: "No presentados",
-            value: todayReservations.filter((r) => r.status === "NO_SHOW")
-              .length,
-            color: "text-red-700 dark:text-red-400",
-          },
-          {
-            label: "Comensales esperados",
-            value: todayReservations
-              .filter((r) => ["CONFIRMED", "PENDING"].includes(r.status))
-              .reduce((s, r) => s + r.guests, 0),
-            color: "text-zinc-800 dark:text-zinc-200",
-          },
-        ].map(({ label, value, color }, i) => (
-          <div
-            key={label}
-            className={`flex items-center gap-2 ${i > 0 ? "border-l border-zinc-200 dark:border-zinc-800 pl-8" : ""}`}
-          >
-            <span className={`text-xl font-bold tabular-nums ${color}`}>
-              {loading ? (
-                <span className="w-8 h-5 bg-zinc-100 dark:bg-zinc-800 rounded animate-pulse inline-block" />
-              ) : (
-                value
-              )}
-            </span>
-            <span className="text-xs text-zinc-500">{label}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Filters row */}
-      <div className="flex flex-wrap items-center gap-3 mb-6">
-        <div className="relative flex-1 min-w-56">
+      {/* Búsqueda + Filtros + Stats en la misma línea en escritorio */}
+      <div className="flex flex-col lg:flex-row lg:items-center gap-3 mb-6">
+        {/* Barra de búsqueda */}
+        <div className="relative flex-1">
           <Icon
             name="search"
             className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500"
@@ -444,13 +507,14 @@ export default function ReservationsManager() {
             className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl pl-12 pr-4 py-3 text-base text-zinc-800 dark:text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30 transition-colors"
           />
         </div>
-        {/* Date toggle */}
-        <div className="flex items-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-0.5">
+
+        {/* Selector de fecha (hoy / mañana / todos) */}
+        <div className="flex items-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-1 shrink-0">
           {(["hoy", "mañana", "todos"] as const).map((d) => (
             <button
               key={d}
               onClick={() => setDateFilter(d)}
-              className={`px-4 py-2.5 text-sm font-semibold rounded-md transition-colors capitalize ${
+              className={`px-4 py-2 text-base font-semibold rounded-lg transition-colors capitalize ${
                 dateFilter === d
                   ? "bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
                   : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
@@ -460,27 +524,87 @@ export default function ReservationsManager() {
             </button>
           ))}
         </div>
-        {/* Status pills */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {(["Todos", ...ALL_STATUSES] as const).map((s) => (
-            <button
-              key={s}
-              onClick={() => setActiveStatus(s)}
-              className={`px-4 py-2.5 rounded-full text-sm font-semibold transition-colors ${
-                activeStatus === s
-                  ? "bg-teal-600 text-white"
-                  : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700"
-              }`}
+
+        {/* Filtrar por estado */}
+        <div className="relative shrink-0">
+          <Icon
+            name="filter"
+            className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500"
+          />
+          <select
+            value={activeStatus}
+            onChange={(e) =>
+              setActiveStatus(e.target.value as ReservationStatus | "Todos")
+            }
+            title="Filtrar por estado"
+            className="w-full lg:w-auto appearance-none bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl pl-10 pr-9 py-3 text-base font-semibold text-zinc-700 dark:text-zinc-300 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30 transition-colors cursor-pointer"
+          >
+            <option value="Todos">Filtrar por…</option>
+            {ALL_STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {STATUS_LABEL[s]}
+              </option>
+            ))}
+          </select>
+          <Icon
+            name="chevronDown"
+            className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500"
+          />
+        </div>
+
+        {/* Stats bar */}
+        <div className="grid grid-cols-2 lg:flex lg:items-center gap-2 lg:gap-x-6 lg:shrink-0 lg:px-5 lg:py-3.5 lg:bg-white lg:dark:bg-zinc-900 lg:border lg:border-zinc-200 lg:dark:border-zinc-800 lg:rounded-xl">
+          {[
+            {
+              label: "Confirmadas hoy",
+              value: todayReservations.filter((r) => r.status === "CONFIRMED")
+                .length,
+              color: "text-teal-700 dark:text-teal-400",
+            },
+            {
+              label: "Pendientes hoy",
+              value: todayReservations.filter((r) => r.status === "PENDING")
+                .length,
+              color: "text-amber-700 dark:text-amber-400",
+            },
+            {
+              label: "No presentados",
+              value: todayReservations.filter((r) => r.status === "NO_SHOW")
+                .length,
+              color: "text-red-700 dark:text-red-400",
+            },
+            {
+              label: "Comensales esperados",
+              value: todayReservations
+                .filter((r) => ["CONFIRMED", "PENDING"].includes(r.status))
+                .reduce((s, r) => s + r.guests, 0),
+              color: "text-zinc-800 dark:text-zinc-200",
+            },
+          ].map(({ label, value, color }, i) => (
+            <div
+              key={label}
+              className={`flex flex-col lg:flex-row items-center lg:items-center gap-0.5 lg:gap-2 bg-white dark:bg-zinc-900 lg:bg-transparent border border-zinc-200 dark:border-zinc-800 lg:border-0 rounded-xl lg:rounded-none px-3 py-2.5 lg:px-0 lg:py-0 ${i > 0 ? "lg:border-l lg:border-zinc-200 lg:dark:border-zinc-800 lg:pl-6" : ""}`}
             >
-              {s === "Todos" ? "Todos" : STATUS_LABEL[s]}
-            </button>
+              <span
+                className={`text-lg lg:text-xl font-bold tabular-nums ${color}`}
+              >
+                {loading ? (
+                  <span className="w-8 h-5 bg-zinc-100 dark:bg-zinc-800 rounded animate-pulse inline-block" />
+                ) : (
+                  value
+                )}
+              </span>
+              <span className="text-[11px] lg:text-xs text-zinc-500 text-center lg:text-left leading-tight">
+                {label}
+              </span>
+            </div>
           ))}
         </div>
       </div>
 
       {/* Rejilla de reservas */}
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
           {Array.from({ length: 8 }).map((_, i) => (
             <div
               key={i}
@@ -489,7 +613,7 @@ export default function ReservationsManager() {
           ))}
         </div>
       ) : filtered.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
           {filtered.map((r) => (
             <ReservationCard
               key={r.id}
@@ -527,11 +651,7 @@ export default function ReservationsManager() {
 
       {statusConfirm && (
         <ConfirmDialog
-          title={
-            statusConfirm.status === "CANCELLED"
-              ? "¿Cancelar reserva?"
-              : "¿Marcar como no presentado?"
-          }
+          title={STATUS_CONFIRM_CONFIG[statusConfirm.status].title}
           message={
             <>
               La reserva de{" "}
@@ -545,12 +665,10 @@ export default function ReservationsManager() {
             </>
           }
           confirmLabel={
-            statusConfirm.status === "CANCELLED"
-              ? "Cancelar reserva"
-              : "Marcar como no presentado"
+            STATUS_CONFIRM_CONFIG[statusConfirm.status].confirmLabel
           }
           cancelLabel="Volver"
-          tone={statusConfirm.status === "CANCELLED" ? "danger" : "warning"}
+          tone={STATUS_CONFIRM_CONFIG[statusConfirm.status].tone}
           loading={
             statusMutation.isPending &&
             statusMutation.variables?.reservationId ===
@@ -575,7 +693,7 @@ export default function ReservationsManager() {
               . Esta acción no se puede deshacer.
             </>
           }
-          confirmLabel="Eliminar reserva"
+          confirmLabel="Eliminar"
           loading={deleteMutation.isPending}
           onConfirm={handleDelete}
           onCancel={() => setDeleteConfirm(null)}

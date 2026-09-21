@@ -182,6 +182,10 @@ export type OrderItem = {
 export type Order = {
   id: number;
   instanceId: number;
+  // Sesión de mesa (sentada de comensales) a la que pertenece este pedido.
+  // Varios pedidos de la misma mesa comparten tableSessionId mientras la
+  // mesa siga abierta — úsalo para combinarlos en un único ticket/cuenta.
+  tableSessionId: number;
   tableNumber: number;
   waiterName: string;
   status: OrderStatus;
@@ -202,17 +206,30 @@ export type OrderCreate = {
   tableNumber: number;
   notes?: string;
   items: OrderItemInput[];
-  // Si es true, el pedido se crea directamente en cocina (IN_PROGRESS) en
-  // vez de quedar en "Nuevos" (PENDING) a la espera de enviarse.
-  sendToKitchen?: boolean;
 };
 
 export type OrderUpdate = Partial<
   Omit<OrderCreate, "items"> & { status: OrderStatus; items: OrderItemInput[] }
 >;
 
+// Sesión de mesa combinada — todos los pedidos de la misma sentada, con
+// sus líneas fusionadas (mismo plato + precio = una sola línea) y el total
+// conjunto. Pensada para imprimir la cuenta completa de la mesa.
+export type TableSession = {
+  id: number;
+  instanceId: number;
+  tableNumber: number;
+  waiterName: string;
+  openedAt: string;
+  closedAt: string | null;
+  orders: Order[];
+  items: OrderItemInput[];
+  notes: string;
+  total: number;
+};
+
 export type AnalyticsSummary = {
-  revenue: { total: number; averageOrderValue: number };
+  revenue: { total: number; today: number; averageOrderValue: number };
   orders: {
     total: number;
     byStatus: Record<OrderStatus, number>;
@@ -400,4 +417,21 @@ export const ordersApi = {
 
   remove: (orderId: number) =>
     request<void>(`/api/orders/${orderId}`, { method: "DELETE" }),
+};
+
+// ─── Table session endpoints ──────────────────────────────────────────────────
+
+export const tableSessionsApi = {
+  // Sesión de mesa combinada (todos sus pedidos fusionados) — para
+  // imprimir la cuenta completa.
+  get: (sessionId: number) =>
+    request<TableSession>(`/api/table-sessions/${sessionId}`),
+
+  // Cierra la cuenta de la mesa (cobrado). Falla si aún queda algún
+  // pedido de esa mesa en curso.
+  close: (sessionId: number) =>
+    request<{ id: number; closedAt: string }>(
+      `/api/table-sessions/${sessionId}/close`,
+      { method: "PATCH" },
+    ),
 };

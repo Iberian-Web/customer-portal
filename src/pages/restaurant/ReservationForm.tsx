@@ -215,7 +215,7 @@ export default function ReservationForm() {
               <p className="mt-1">Esta acción no se puede deshacer.</p>
             </>
           }
-          confirmLabel="Eliminar reserva"
+          confirmLabel="Eliminar"
           loading={deleteMutation.isPending}
           onConfirm={handleDelete}
           onCancel={() => setShowDeleteConfirm(false)}
@@ -327,7 +327,7 @@ export default function ReservationForm() {
                 className="flex items-center justify-center gap-2 px-4 py-3 text-red-700 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-400/10 border border-red-200 dark:border-red-500/20 hover:border-red-300 dark:hover:border-red-500/40 text-sm font-medium rounded-xl transition-colors"
               >
                 <Icon name="trash" strokeWidth={1.8} />
-                Eliminar reserva
+                Eliminar
               </button>
             )}
             <div className="flex flex-col sm:flex-row gap-2.5 sm:ml-auto">
@@ -341,7 +341,7 @@ export default function ReservationForm() {
                 {submitMutation.isPending
                   ? "Guardando…"
                   : isEdit
-                    ? "Guardar cambios"
+                    ? "Guardar"
                     : "Crear reserva"}
               </button>
               <button

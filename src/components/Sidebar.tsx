@@ -177,7 +177,7 @@ function SidebarContent({
                     onClick={onLinkClick}
                     title={collapsed ? label : undefined}
                     className={({ isActive }) =>
-                      `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${collapsed ? "justify-center" : ""} ${
+                      `flex items-center gap-3 px-3 h-9 rounded-lg text-sm font-medium transition-colors ${collapsed ? "justify-center" : ""} ${
                         isActive
                           ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
                           : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800/60"
@@ -208,7 +208,7 @@ function SidebarContent({
         <button
           onClick={handleLogout}
           title={collapsed ? "Cerrar sesión" : undefined}
-          className={`w-full px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 rounded-lg transition-colors text-left flex items-center gap-2.5 ${collapsed ? "justify-center" : ""}`}
+          className={`w-full px-3 h-9 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 rounded-lg transition-colors text-left flex items-center gap-2.5 ${collapsed ? "justify-center" : ""}`}
         >
           <LogOut className="w-4 h-4 shrink-0" strokeWidth={1.8} />
           {!collapsed && "Cerrar sesión"}
