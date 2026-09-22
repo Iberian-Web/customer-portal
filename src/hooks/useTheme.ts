@@ -1,7 +1,7 @@
 // customer-portal/src/hooks/useTheme.ts
 import { useCallback, useEffect, useState } from "react";
 
-export type Theme = "light" | "dark";
+type Theme = "light" | "dark";
 
 function getInitialTheme(): Theme {
   // index.html ya aplicó la clase "dark" antes de montar React (evita el
@@ -16,10 +16,8 @@ function getInitialTheme(): Theme {
 }
 
 /**
- * Tema claro/oscuro de toda la app. Cambiarlo alterna la clase `dark` en
- * `<html>` (de la que depende cada utilidad `dark:*` de Tailwind, ver
- * tailwind.config.mjs) y recuerda la elección en localStorage para la
- * próxima visita.
+ * Tema claro/oscuro de toda la app: alterna la clase `dark` en `<html>` y
+ * recuerda la elección en localStorage.
  */
 export function useTheme() {
   const [theme, setTheme] = useState<Theme>(getInitialTheme);

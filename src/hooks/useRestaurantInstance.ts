@@ -3,14 +3,12 @@ import { useAuth } from "../auth/useAuth";
 import { slugify } from "../utils/slug";
 import type { Instance } from "../api";
 
-export type RestaurantInstance = Instance & { slug: string };
+type RestaurantInstance = Instance & { slug: string };
 
 /**
- * Cada credencial de este portal pertenece a un único cliente, y hoy en día
- * un cliente solo puede contratar una vez la app "Restaurante" — así que en
- * vez de fiarnos de un id en la URL, resolvemos la instancia real a partir de
- * la sesión ya autenticada. El id numérico solo se usa para llamar a la API;
- * el "slug" (a partir del nombre de la empresa) es el que se ve en la URL.
+ * Resuelve la instancia real del restaurante a partir de la sesión
+ * autenticada (una credencial = un cliente, y hoy solo cabe una instancia
+ * de "Restaurante" por cliente), en vez de fiarse de un id en la URL.
  */
 export function useRestaurantInstance(): RestaurantInstance | undefined {
   const { access } = useAuth();

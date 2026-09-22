@@ -1,8 +1,5 @@
-// customer-portal/src/components/FormPage.tsx
 // Piezas compartidas por las páginas de formulario a tamaño completo
-// (pedidos, reservas, platos): cabecera con botón "volver", título de
-// sección y campo con label/error, para que las tres se vean y se
-// comporten igual.
+// (pedidos, reservas, platos), para que se vean y comporten igual.
 import type { ReactNode } from "react";
 import { Icon } from "./icons";
 

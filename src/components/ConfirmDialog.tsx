@@ -1,8 +1,4 @@
-// customer-portal/src/components/ConfirmDialog.tsx
-//
-// Diálogo de confirmación compartido por toda la app (pedidos, reservas,
-// carta...). Sustituye a los `window.confirm()`/`alert()` del navegador para
-// que eliminar, cancelar o confirmar algo se vea y se comporte siempre igual.
+// Diálogo de confirmación compartido, en vez de `window.confirm()`/`alert()`.
 import { Spinner } from "./icons";
 
 export type ConfirmDialogTone = "danger" | "warning" | "default";

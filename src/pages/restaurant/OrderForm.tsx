@@ -79,10 +79,8 @@ export default function OrderForm() {
   const [initialized, setInitialized] = useState(false);
 
   // ── Form state ──
-  // Si venimos de "Nuevo pedido para esta mesa" (una comanda anterior ya
-  // cerrada, entregada o cancelada), la mesa llega en ?table= y se
-  // precarga: así se abre un pedido nuevo e independiente para la misma
-  // mesa en vez de reabrir o mezclar los platos con la comanda ya cerrada.
+  // "Nuevo pedido para esta mesa" precarga la mesa vía ?table=, para abrir un
+  // pedido nuevo e independiente sin reabrir la comanda ya cerrada.
   const prefilledTable = !isEdit ? searchParams.get("table") : null;
   const [form, setForm] = useState<FormData>(
     prefilledTable ? { ...emptyForm, tableNumber: prefilledTable } : emptyForm,
@@ -231,10 +229,8 @@ export default function OrderForm() {
   // Todos los platos de todas las cartas del restaurante, sin agrupar por carta
   const allDishes = useMemo(() => menus.flatMap((m) => m.dishes), [menus]);
 
-  // Secciones de carta realmente en uso, calculadas de forma dinámica a
-  // partir de los platos existentes — no hay una lista fija: si en "Carta"
-  // se crea una sección nueva ("Especiales", "Cumpleaños"...), aparece aquí
-  // automáticamente en cuanto tenga algún plato.
+  // Secciones de carta realmente en uso: no hay lista fija, se calculan a
+  // partir de los platos existentes.
   const presentCategories = useMemo(() => {
     const set = new Set<string>();
     for (const d of allDishes) {
@@ -273,12 +269,9 @@ export default function OrderForm() {
   };
 
   /**
-   * Guarda el pedido. Un pedido nuevo entra siempre directamente en cocina
-   * (IN_PROGRESS) — ya no existe la opción de guardarlo "sin enviar". Al
-   * editar un pedido ya existente esto solo actualiza sus datos/platos: el
-   * estado de cocina se gestiona desde el listado de pedidos, no aquí.
-   * El camarero/a NUNCA se envía desde este formulario: lo asocia el
-   * backend a partir de la sesión de quien ha iniciado sesión.
+   * Guarda el pedido. Uno nuevo entra siempre directo a cocina (IN_PROGRESS).
+   * Editar uno existente solo actualiza sus datos/platos. El camarero/a
+   * nunca se envía desde aquí: lo asocia el backend por la sesión.
    */
   const submitMutation = useMutation({
     mutationFn: async (payload: OrderCreate) => {
@@ -501,7 +494,7 @@ export default function OrderForm() {
                         onClick={() => handleAddDish(dish.name, dish.price)}
                         className="flex flex-col items-start gap-2 px-4 py-4 min-h-22 min-w-0 bg-zinc-50 dark:bg-zinc-950/50 hover:bg-teal-50 dark:hover:bg-teal-500/10 active:bg-teal-500/20 border border-zinc-200 dark:border-zinc-800 hover:border-teal-400 dark:hover:border-teal-500/50 rounded-2xl text-left transition-colors"
                       >
-                        <span className="w-full text-base text-zinc-900 dark:text-zinc-100 font-semibold leading-snug line-clamp-2 break-words">
+                        <span className="w-full text-base text-zinc-900 dark:text-zinc-100 font-semibold leading-snug line-clamp-2 wrap-break-word">
                           {dish.name}
                         </span>
                         <span className="text-sm text-zinc-600 dark:text-zinc-400 tabular-nums">

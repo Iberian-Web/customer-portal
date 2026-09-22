@@ -17,13 +17,11 @@ import { getErrorMessage } from "../../utils/errors";
 import { ALLERGEN_LABELS } from "../../utils/allergens";
 
 // ─── Category / section styling ────────────────────────────────────────────
-// Las secciones (Entrante, Principal...) ya no son un enum fijo del sistema:
-// son una lista propia por restaurante, gestionable desde esta misma página
-// (crear, renombrar, reordenar, eliminar). Se siembran con el set habitual
-// al contratar la app, pero cada restaurante la puede editar libremente.
+// Las secciones (Entrante, Principal...) son una lista propia por
+// restaurante, editable desde esta página, no un enum fijo del sistema.
 
-// Paleta de colores estable por nombre, para distinguir secciones de un
-// vistazo aunque el restaurante las haya renombrado o creado nuevas.
+// Paleta de colores estable por nombre, para distinguir secciones aunque
+// se hayan renombrado o creado nuevas.
 const CATEGORY_PALETTE = [
   "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 ring-1 ring-amber-200 dark:ring-amber-500/20",
   "bg-teal-50 dark:bg-teal-500/10 text-teal-700 dark:text-teal-400 ring-1 ring-teal-200 dark:ring-teal-500/20",
@@ -189,11 +187,9 @@ export default function MenuManager() {
   const invalidateSections = () =>
     queryClient.invalidateQueries({ queryKey: ["menuSections", instId] });
 
-  // Elige la carta activa: mantiene la actual si sigue existiendo; si no
-  // (primera carga, o se acaba de borrar la que estaba activa), cae en la
-  // de la URL (?menuId=) o en la primera de la lista. Se calcula durante el
-  // render, no en un efecto: es una simple adaptación de estado a partir de
-  // datos ya cargados, no una sincronización con un sistema externo.
+  // Elige la carta activa: mantiene la actual si existe; si no, cae en la
+  // de la URL (?menuId=) o la primera. Va en el render, no en un efecto:
+  // es adaptar estado a datos ya cargados.
   if (menus.length === 0) {
     if (activeMenuId !== null) setActiveMenuId(null);
   } else if (!menus.some((m) => m.id === activeMenuId)) {

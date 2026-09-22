@@ -22,10 +22,8 @@ export const STATUS_STYLES: Record<OrderStatus, string> = {
 };
 
 // ─── Próximo estado del ciclo de vida de un pedido ─────────────────────────
-// Compartido entre OrdersManager y KitchenDisplay: avanzar un pedido es el
-// mismo paso lo mires desde donde lo mires (p. ej. "En cocina" → "Listo"),
-// así que el botón, su etiqueta y su color deben ser siempre los mismos
-// estén en la pantalla que estén — un único sitio donde cambiarlos.
+// Compartido entre OrdersManager y KitchenDisplay, para que el botón, su
+// etiqueta y su color sean siempre los mismos estén donde estén.
 export type NextAction = {
   next: OrderStatus;
   label: string;

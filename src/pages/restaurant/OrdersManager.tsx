@@ -60,9 +60,7 @@ const ALL_STATUSES: OrderStatus[] = [
 
 // ─── Ticket de impresión ────────────────────────────────────────────────────
 // Imprime la cuenta de la MESA (todos los pedidos de la sesión combinados),
-// no solo el pedido concreto sobre el que se pulsó "imprimir": si Ramón y
-// Juan piden un plato y luego un postre por separado, el ticket incluye
-// ambos en vez de quedarse solo con el último pedido.
+// no solo el pedido sobre el que se pulsó "imprimir".
 
 async function printOrderTicket(order: Order) {
   const win = window.open("", "_blank", "width=380,height=600");
@@ -145,10 +143,8 @@ function OrderCard({
   onDelete: () => void;
 }) {
   const nextAction = NEXT_ACTION[order.status];
-  // Un pedido entregado o cancelado es una comanda cerrada: ya se sirvió (o
-  // no procede). Si en la mesa piden algo más, no se toca esa comanda —se
-  // crea un pedido nuevo para la misma mesa (ver onReorder)—, así el
-  // histórico y el ticket ya impreso no cambian.
+  // Un pedido entregado o cancelado es una comanda cerrada: no se toca, se
+  // crea una nueva para la misma mesa (ver onReorder).
   const isClosed = ["DELIVERED", "CANCELLED"].includes(order.status);
   const canCancel = !isClosed;
 
@@ -325,10 +321,8 @@ export default function OrdersManager() {
     ["IN_PROGRESS", "READY"].includes(o.status),
   ).length;
 
-  // Sesiones de mesa que todavía tienen algún pedido en curso: mientras sea
-  // así, esa mesa no se puede cerrar (evita dejar un pedido activo fuera de
-  // la cuenta ya cobrada). Se usa para deshabilitar el botón antes de que el
-  // usuario lo intente, en vez de solo mostrar el error del backend.
+  // Sesiones de mesa con algún pedido en curso: mientras sea así no se
+  // pueden cerrar. Se usa para deshabilitar el botón antes de intentarlo.
   const sessionsWithActiveOrders = useMemo(
     () =>
       new Set(
@@ -370,10 +364,8 @@ export default function OrdersManager() {
   };
 
   // ── Cerrar mesa (cobrar) ─────────────────────────────────────────────────
-  // Cierra la sesión de mesa del pedido: a partir de ahí, un nuevo pedido
-  // para esa mesa abrirá una sesión nueva en vez de sumarse a la cuenta que
-  // se acaba de cobrar. El backend rechaza el cierre si a esa mesa le queda
-  // algún pedido en curso.
+  // A partir de ahí, un pedido nuevo para esa mesa abre una sesión nueva.
+  // El backend rechaza el cierre si queda algún pedido en curso.
 
   const closeSessionMutation = useMutation({
     mutationFn: (tableSessionId: number) =>
@@ -534,12 +526,8 @@ export default function OrdersManager() {
           ))}
         </div>
       ) : filtered.length > 0 ? (
-        // Rejilla "inteligente": en vez de un grid clásico (donde toda la fila
-        // se estira a la altura de la tarjeta más alta y se desperdicia
-        // espacio si un pedido tiene 1 plato y el de al lado 20), se usa un
-        // layout de columnas tipo mampostería/masonry: cada tarjeta ocupa solo
-        // el alto que necesita y la siguiente empieza justo debajo, dentro de
-        // su columna, sin depender de las demás.
+        // Layout tipo masonry en vez de grid clásico, para que cada tarjeta
+        // ocupe solo el alto que necesita sin desperdiciar espacio.
         <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 2xl:columns-5 min-[1920px]:columns-6 min-[2560px]:columns-7 gap-3">
           {filtered.map((order) => (
             <OrderCard

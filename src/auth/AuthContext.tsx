@@ -14,10 +14,9 @@ async function authFetch(path: string, init?: RequestInit): Promise<Response> {
   });
 }
 
-// Restaura la sesión a partir de la cookie HTTP-only: primero comprueba si
-// sigue siendo válida y, solo entonces, carga los datos completos del
-// cliente. Cualquier fallo (sesión caducada, red, etc.) se trata igual:
-// no autenticado — nunca se propaga como error de la query.
+// Restaura la sesión desde la cookie HTTP-only: comprueba que siga siendo
+// válida y solo entonces carga los datos del cliente. Cualquier fallo se
+// trata como "no autenticado", nunca como error de la query.
 async function bootstrapAuth(): Promise<MyAccess | null> {
   try {
     const res = await authFetch("/api/customer-auth/me");

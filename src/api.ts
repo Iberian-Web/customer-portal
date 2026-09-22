@@ -1,9 +1,5 @@
-// customer-portal/src/api.ts
-//
-// Typed fetch utility for the Customer Portal.
-// All requests automatically include the HTTP-only session cookie.
-// The base URL is controlled by VITE_API_URL (empty string in dev so Vite
-// proxies /api → http://localhost:3001).
+// Typed fetch utility for the Customer Portal. Requests include the
+// HTTP-only session cookie; base URL comes from VITE_API_URL.
 
 const BASE = import.meta.env.VITE_API_URL ?? "";
 
@@ -31,7 +27,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 // Antes era un enum cerrado; ahora es texto libre para poder crear
 // secciones de carta nuevas (p. ej. "Especiales", "Cumpleaños") sin límite.
-export type DishCategory = string;
+type DishCategory = string;
 
 export type Allergen =
   | "GLUTEN"
@@ -68,7 +64,7 @@ export type User = {
   status: "ACTIVE" | "INACTIVE" | "PENDING";
 };
 
-export type Service = {
+type Service = {
   id: number;
   applicationId: number;
   name: string;
@@ -76,7 +72,7 @@ export type Service = {
   price: string;
 };
 
-export type Application = {
+type Application = {
   id: number;
   name: string;
   color: string;
@@ -84,7 +80,7 @@ export type Application = {
   services: Service[];
 };
 
-export type InstanceService = {
+type InstanceService = {
   id: number;
   instanceId: number;
   serviceId: number;
@@ -167,7 +163,7 @@ export type ReservationCreate = {
   notes?: string;
 };
 
-export type ReservationUpdate = Partial<
+type ReservationUpdate = Partial<
   ReservationCreate & { status: ReservationStatus }
 >;
 
@@ -196,7 +192,7 @@ export type Order = {
   total: number; // calculado en el backend a partir de las líneas del pedido
 };
 
-export type OrderItemInput = {
+type OrderItemInput = {
   dishName: string;
   quantity: number;
   unitPrice: number;
@@ -208,14 +204,14 @@ export type OrderCreate = {
   items: OrderItemInput[];
 };
 
-export type OrderUpdate = Partial<
+type OrderUpdate = Partial<
   Omit<OrderCreate, "items"> & { status: OrderStatus; items: OrderItemInput[] }
 >;
 
 // Sesión de mesa combinada — todos los pedidos de la misma sentada, con
 // sus líneas fusionadas (mismo plato + precio = una sola línea) y el total
 // conjunto. Pensada para imprimir la cuenta completa de la mesa.
-export type TableSession = {
+type TableSession = {
   id: number;
   instanceId: number;
   tableNumber: number;
@@ -228,7 +224,7 @@ export type TableSession = {
   total: number;
 };
 
-export type AnalyticsSummary = {
+type AnalyticsSummary = {
   revenue: { total: number; today: number; averageOrderValue: number };
   orders: {
     total: number;

@@ -1,12 +1,5 @@
-// customer-portal/src/components/OrderTicketParts.tsx
-//
-// OrdersManager (gestión de pedidos) y KitchenDisplay (pantalla de cocina)
-// muestran, en el fondo, la misma "tarjeta de pedido": mesa + metadatos,
-// lista de platos, notas/alergias y un botón para avanzar de estado. Solo
-// cambia el marco alrededor (una es una rejilla de gestión con más acciones,
-// la otra un ticket de cocina a pantalla completa). Estas piezas eran código
-// calcado en los dos archivos; centralizarlas aquí hace que un arreglo (p.
-// ej. el ajuste de un nombre de plato largo) se aplique una sola vez.
+// Tarjeta de pedido compartida por OrdersManager y KitchenDisplay (mesa,
+// platos, notas y botón de avance): era código calcado en ambos archivos.
 import type { Order, OrderItem } from "../api";
 import { Icon } from "./icons";
 import ConfirmDialog from "./ConfirmDialog";
@@ -59,7 +52,7 @@ export function OrderItemsList({ items }: { items: OrderItem[] }) {
           <span className="shrink-0 min-w-7 text-center text-sm font-bold text-zinc-900 dark:text-zinc-100 bg-zinc-100 dark:bg-zinc-800 rounded px-1.5">
             {item.quantity}
           </span>
-          <span className="min-w-0 flex-1 break-words text-base text-zinc-800 dark:text-zinc-200 leading-snug">
+          <span className="min-w-0 flex-1 wrap-break-word text-base text-zinc-800 dark:text-zinc-200 leading-snug">
             {item.dishName}
           </span>
         </div>
