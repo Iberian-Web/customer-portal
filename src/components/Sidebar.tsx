@@ -8,6 +8,7 @@ import {
   ChefHat,
   BarChart3,
   LogOut,
+  Map,
   type LucideIcon,
 } from "lucide-react";
 import type { Instance } from "../api";
@@ -51,6 +52,13 @@ const SERVICE_ROUTE_MAP: Record<string, (slug: string) => NavEntry[]> = {
       label: "Pedidos",
       to: `/restaurant/${slug}/orders`,
       icon: serviceIcon(ClipboardList),
+    },
+  ],
+  Mapa: (slug) => [
+    {
+      label: "Mapa",
+      to: `/restaurant/${slug}/map`,
+      icon: serviceIcon(Map),
     },
   ],
   Cocina: (slug) => [

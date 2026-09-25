@@ -21,6 +21,14 @@ export const STATUS_STYLES: Record<OrderStatus, string> = {
     "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 ring-1 ring-red-200 dark:ring-red-500/20",
 };
 
+// Estado derivado (no existe en el backend): un pedido "Entregado" cuya
+// mesa ya se cerró y cobró. A diferencia de "Entregado" a secas, aquí ya no
+// se le puede añadir nada más a la cuenta — se muestra más apagado para que
+// se distinga de un vistazo del resto.
+export const COMPLETED_LABEL = "Completado";
+export const COMPLETED_STYLE =
+  "bg-zinc-100 dark:bg-zinc-800/60 text-zinc-400 dark:text-zinc-500 ring-1 ring-zinc-200 dark:ring-zinc-700/40";
+
 // ─── Próximo estado del ciclo de vida de un pedido ─────────────────────────
 // Compartido entre OrdersManager y KitchenDisplay, para que el botón, su
 // etiqueta y su color sean siempre los mismos estén donde estén.

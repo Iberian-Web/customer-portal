@@ -8,6 +8,7 @@ import MenuManager from "./pages/restaurant/MenuManager";
 import DishForm from "./pages/restaurant/DishForm";
 import OrdersManager from "./pages/restaurant/OrdersManager";
 import OrderForm from "./pages/restaurant/OrderForm";
+import TableMap from "./pages/restaurant/TableMap";
 import KitchenDisplay from "./pages/restaurant/KitchenDisplay";
 import ReservationsManager from "./pages/restaurant/ReservationsManager";
 import ReservationForm from "./pages/restaurant/ReservationForm";
@@ -70,6 +71,7 @@ export default function App() {
             path="/restaurant/:companySlug/orders/:orderId"
             element={<OrderForm />}
           />
+          <Route path="/restaurant/:companySlug/map" element={<TableMap />} />
           <Route
             path="/restaurant/:companySlug/kitchen"
             element={<KitchenDisplay />}

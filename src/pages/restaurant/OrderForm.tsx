@@ -72,7 +72,14 @@ export default function OrderForm() {
   const id = instance?.id ?? 0;
   const slug = instance?.slug ?? "";
   const isEdit = !!orderId && orderId !== "new";
-  const goBack = () => navigate(`/restaurant/${slug}/orders`);
+  // Si se llegó aquí desde el Mapa (nuevo pedido o editar uno existente
+  // desde la modal de una mesa), al terminar hay que volver al Mapa en vez
+  // de al listado de pedidos de siempre.
+  const returnTo =
+    searchParams.get("from") === "map"
+      ? `/restaurant/${slug}/map`
+      : `/restaurant/${slug}/orders`;
+  const goBack = () => navigate(returnTo);
 
   // ── Data state ──
   const [order, setOrder] = useState<Order | null>(null);
@@ -132,9 +139,9 @@ export default function OrderForm() {
   // fallo se deriva directamente más abajo, sin pasar por estado.
   useEffect(() => {
     if (isEdit && orderQueryError && isNotFoundError(orderQueryError)) {
-      navigate(`/restaurant/${slug}/orders`, { replace: true });
+      navigate(returnTo, { replace: true });
     }
-  }, [isEdit, orderQueryError, navigate, slug]);
+  }, [isEdit, orderQueryError, navigate, returnTo]);
 
   const loadError =
     isEdit && orderQueryError && !isNotFoundError(orderQueryError)

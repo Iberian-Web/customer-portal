@@ -51,6 +51,12 @@ export type ReservationStatus =
 export type OrderStatus =
   "PENDING" | "IN_PROGRESS" | "READY" | "DELIVERED" | "CANCELLED";
 
+export type TableShape = "RECTANGLE" | "ROUND";
+
+// Estado de ocupación calculado por el backend a partir de la sesión de
+// mesa abierta (si la hay) y los pedidos que cuelgan de ella.
+export type TableMapStatus = "LIBRE" | "EN_COCINA" | "LISTO" | "PARA_COBRAR";
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type User = {
@@ -190,6 +196,10 @@ export type Order = {
   updatedAt: string;
   items: OrderItem[];
   total: number; // calculado en el backend a partir de las líneas del pedido
+  // Si no es null, la sesión de mesa de este pedido ya se cerró (cobrada):
+  // un pedido "Entregado" con esto a null todavía puede sumar más pedidos a
+  // la misma cuenta; uno con la sesión cerrada ya está completado del todo.
+  tableSessionClosedAt: string | null;
 };
 
 type OrderItemInput = {
@@ -223,6 +233,41 @@ type TableSession = {
   notes: string;
   total: number;
 };
+
+// Mesa del mapa de mesas (página "Mapa"). posRow/posCol/width/height
+// describen su posición y tamaño dentro de la rejilla; el resto de campos
+// (status, tableSessionId, waiterName, openOrdersCount, total) los calcula
+// el backend a partir de la sesión abierta para esa mesa, no se guardan.
+export type RestaurantTable = {
+  id: number;
+  instanceId: number;
+  number: number;
+  name: string;
+  seats: number;
+  shape: TableShape;
+  posRow: number;
+  posCol: number;
+  width: number;
+  height: number;
+  status: TableMapStatus;
+  tableSessionId: number | null;
+  waiterName: string;
+  openOrdersCount: number;
+  total: number;
+};
+
+export type RestaurantTableCreate = {
+  number: number;
+  name?: string;
+  seats?: number;
+  shape?: TableShape;
+  posRow?: number;
+  posCol?: number;
+  width?: number;
+  height?: number;
+};
+
+export type RestaurantTableUpdate = Partial<RestaurantTableCreate>;
 
 type AnalyticsSummary = {
   revenue: { total: number; today: number; averageOrderValue: number };
@@ -379,14 +424,41 @@ export const reservationsApi = {
 
 // ─── Order endpoints ──────────────────────────────────────────────────────────
 
+export type CompletedOrdersPage = {
+  orders: Order[];
+  nextCursor: number | null;
+};
+
 export const ordersApi = {
-  // List orders for an instance. Optionally filter by status.
+  // Pedidos "activos" de una instancia (la sesión de su mesa sigue
+  // abierta) — optionally filter by status. El histórico de mesas ya
+  // cerradas y cobradas NO se incluye aquí: puede crecer sin límite, así
+  // que tiene su propio endpoint paginado (ver listCompleted).
   list: (instanceId: number, filters?: { status?: OrderStatus }) => {
     const params = new URLSearchParams();
     if (filters?.status) params.set("status", filters.status);
     const qs = params.toString();
     return request<Order[]>(
       `/api/instances/${instanceId}/orders${qs ? `?${qs}` : ""}`,
+    );
+  },
+
+  // Pedidos "completados" (mesa ya cerrada y cobrada), paginados con
+  // cursor: pasa el nextCursor de la página anterior para pedir la
+  // siguiente. search filtra en el propio servidor (mesa, camarero, plato
+  // o nº de pedido) para poder buscar en todo el histórico aunque no esté
+  // cargado entero.
+  listCompleted: (
+    instanceId: number,
+    options?: { cursor?: number | null; search?: string; limit?: number },
+  ) => {
+    const params = new URLSearchParams();
+    if (options?.cursor) params.set("cursor", String(options.cursor));
+    if (options?.search) params.set("search", options.search);
+    if (options?.limit) params.set("limit", String(options.limit));
+    const qs = params.toString();
+    return request<CompletedOrdersPage>(
+      `/api/instances/${instanceId}/orders/completed${qs ? `?${qs}` : ""}`,
     );
   },
 
@@ -430,4 +502,26 @@ export const tableSessionsApi = {
       `/api/table-sessions/${sessionId}/close`,
       { method: "PATCH" },
     ),
+};
+
+// ─── Mapa de mesas ────────────────────────────────────────────────────────────
+
+export const tablesApi = {
+  list: (instanceId: number) =>
+    request<RestaurantTable[]>(`/api/instances/${instanceId}/tables`),
+
+  create: (instanceId: number, data: RestaurantTableCreate) =>
+    request<RestaurantTable>(`/api/instances/${instanceId}/tables`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  update: (tableId: number, data: RestaurantTableUpdate) =>
+    request<RestaurantTable>(`/api/tables/${tableId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  remove: (tableId: number) =>
+    request<void>(`/api/tables/${tableId}`, { method: "DELETE" }),
 };

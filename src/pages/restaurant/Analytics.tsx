@@ -33,21 +33,25 @@ function StatCard({
   value,
   hint,
   color,
+  className = "",
 }: {
   label: string;
   value: string;
   hint?: string;
   color: string;
+  className?: string;
 }) {
   return (
-    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl px-6 py-5">
-      <p className="text-sm font-medium text-zinc-500">{label}</p>
+    <div
+      className={`bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl px-4 py-3 sm:px-6 sm:py-5 ${className}`}
+    >
+      <p className="text-xs sm:text-sm font-medium text-zinc-500">{label}</p>
       <p
-        className={`mt-2 text-3xl font-black tabular-nums leading-none ${color}`}
+        className={`mt-1.5 sm:mt-2 text-xl sm:text-3xl font-black tabular-nums leading-none ${color}`}
       >
         {value}
       </p>
-      <p className="mt-2 text-sm text-zinc-500 min-h-[1.25rem]">
+      <p className="mt-1.5 sm:mt-2 text-xs sm:text-sm text-zinc-500 min-h-[1.1rem] sm:min-h-[1.25rem]">
         {hint ?? "\u00A0"}
       </p>
     </div>
@@ -127,6 +131,13 @@ export default function Analytics() {
     ...data.orders.dailySeries.map((d) => d.revenue),
   );
   const maxDishQuantity = Math.max(1, ...data.topDishes.map((d) => d.quantity));
+  // El gráfico de debajo ya solo cubre los últimos 30 días — se reutiliza esa
+  // misma serie para la tarjeta destacada, así los dos números de la página
+  // hablan siempre de la misma ventana temporal ("este mes" ≈ últimos 30 días).
+  const revenueThisMonth = data.orders.dailySeries.reduce(
+    (sum, d) => sum + d.revenue,
+    0,
+  );
 
   return (
     <div className="px-6 lg:px-8 py-6 w-full">
@@ -140,12 +151,15 @@ export default function Analytics() {
         </p>
       </div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+      {/* Stat cards: en móvil, "Facturado este mes" ocupa las dos columnas
+          y el resto se acomoda en una rejilla de 2×2 debajo, para que nada
+          salte de línea con menos ancho disponible. */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
         <StatCard
-          label="Ingresos totales"
-          value={money(data.revenue.total)}
+          label="Facturado este mes"
+          value={money(revenueThisMonth)}
           color="text-teal-700 dark:text-teal-400"
+          className="col-span-2 sm:col-span-1"
         />
         <StatCard
           label="Facturado hoy"

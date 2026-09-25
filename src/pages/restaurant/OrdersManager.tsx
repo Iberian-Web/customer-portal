@@ -1,6 +1,11 @@
 // customer-portal/src/pages/restaurant/OrdersManager.tsx
-import { useState, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useMemo, useEffect } from "react";
+import {
+  useQuery,
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
   Pencil,
@@ -22,13 +27,17 @@ import {
 } from "../../api";
 import { useRestaurantInstance } from "../../hooks/useRestaurantInstance";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import { Spinner } from "../../components/icons";
 import { getErrorMessage } from "../../utils/errors";
 import { money, toLocalTimeString } from "../../utils/format";
 import {
   STATUS_LABEL,
   STATUS_STYLES,
   NEXT_ACTION,
+  COMPLETED_LABEL,
+  COMPLETED_STYLE,
 } from "../../utils/orderStatus";
+import { printOrderTicket } from "../../utils/printTicket";
 import {
   OrderCardHeader,
   OrderItemsList,
@@ -57,63 +66,6 @@ const ALL_STATUSES: OrderStatus[] = [
   "DELIVERED",
   "CANCELLED",
 ];
-
-// ─── Ticket de impresión ────────────────────────────────────────────────────
-// Imprime la cuenta de la MESA (todos los pedidos de la sesión combinados),
-// no solo el pedido sobre el que se pulsó "imprimir".
-
-async function printOrderTicket(order: Order) {
-  const win = window.open("", "_blank", "width=380,height=600");
-  if (!win) return;
-
-  const session = await tableSessionsApi.get(order.tableSessionId);
-
-  const rows = session.items
-    .map(
-      (it) => `
-        <tr>
-          <td style="padding:2px 0;">${it.quantity}×</td>
-          <td style="padding:2px 6px;">${it.dishName}</td>
-          <td style="padding:2px 0;text-align:right;">${(it.quantity * it.unitPrice).toFixed(2)} €</td>
-        </tr>`,
-    )
-    .join("");
-
-  const orderIds = session.orders
-    .filter((o) => o.status !== "CANCELLED")
-    .map((o) => `#${o.id}`)
-    .join(", ");
-
-  win.document.write(`
-    <html>
-      <head>
-        <title>Mesa ${session.tableNumber}</title>
-        <style>
-          body { font-family: 'Courier New', monospace; font-size: 13px; padding: 16px; color: #111; }
-          h1 { font-size: 16px; margin: 0 0 4px; text-align: center; }
-          p { margin: 2px 0; }
-          table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-          .divider { border-top: 1px dashed #999; margin: 10px 0; }
-          .total { font-weight: bold; font-size: 14px; }
-        </style>
-      </head>
-      <body>
-        <h1>Mesa ${session.tableNumber}</h1>
-        <p style="text-align:center;">${session.waiterName}</p>
-        <p style="text-align:center;">Pedidos ${orderIds}</p>
-        <p style="text-align:center;">${new Date(session.openedAt).toLocaleString("es-ES")}</p>
-        <div class="divider"></div>
-        <table>${rows}</table>
-        <div class="divider"></div>
-        <p class="total" style="text-align:right;">TOTAL: ${session.total.toFixed(2)} €</p>
-        ${session.notes ? `<div class="divider"></div><p>Notas: ${session.notes}</p>` : ""}
-      </body>
-    </html>
-  `);
-  win.document.close();
-  win.focus();
-  win.print();
-}
 
 // ─── Tarjeta de pedido ────────────────────────────────────────────────────────
 
@@ -147,6 +99,11 @@ function OrderCard({
   // crea una nueva para la misma mesa (ver onReorder).
   const isClosed = ["DELIVERED", "CANCELLED"].includes(order.status);
   const canCancel = !isClosed;
+  // A diferencia de "entregado" (la mesa puede seguir sumando pedidos), una
+  // sesión ya cerrada (cobrada) está completamente finalizada: ya no admite
+  // ni nuevos pedidos en la misma cuenta ni volver a cerrarla.
+  const sessionClosed = order.tableSessionClosedAt !== null;
+  const showCompleted = order.status === "DELIVERED" && sessionClosed;
 
   return (
     <div
@@ -163,8 +120,10 @@ function OrderCard({
             {toLocalTimeString(order.createdAt)}
           </>
         }
-        badge={STATUS_LABEL[order.status]}
-        badgeClassName={STATUS_STYLES[order.status]}
+        badge={showCompleted ? COMPLETED_LABEL : STATUS_LABEL[order.status]}
+        badgeClassName={
+          showCompleted ? COMPLETED_STYLE : STATUS_STYLES[order.status]
+        }
       />
 
       {/* Platos: mismo estilo que en cocina (badge de cantidad + plato) */}
@@ -196,18 +155,20 @@ function OrderCard({
               >
                 <RotateCcw className="w-4 h-4" strokeWidth={1.8} />
               </button>
-              <button
-                disabled={closingTable || sessionStillActive}
-                onClick={onCloseTable}
-                title={
-                  sessionStillActive
-                    ? "Todavía hay otro pedido en curso en esta mesa"
-                    : "Cerrar mesa y cobrar la cuenta combinada"
-                }
-                className="p-2 text-zinc-500 hover:text-teal-700 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-500/10 rounded-lg transition-colors disabled:opacity-30"
-              >
-                <Receipt className="w-4 h-4" strokeWidth={1.8} />
-              </button>
+              {!sessionClosed && (
+                <button
+                  disabled={closingTable || sessionStillActive}
+                  onClick={onCloseTable}
+                  title={
+                    sessionStillActive
+                      ? "Todavía hay otro pedido en curso en esta mesa"
+                      : "Cerrar y cobrar la cuenta combinada"
+                  }
+                  className="p-2 text-zinc-500 hover:text-teal-700 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-500/10 rounded-lg transition-colors disabled:opacity-30"
+                >
+                  <Receipt className="w-4 h-4" strokeWidth={1.8} />
+                </button>
+              )}
             </>
           ) : (
             <button
@@ -259,9 +220,23 @@ export default function OrdersManager() {
 
   // UI state
   const [search, setSearch] = useState("");
-  const [activeStatus, setActiveStatus] = useState<OrderStatus | "Todos">(
-    "Todos",
-  );
+  const [activeStatus, setActiveStatus] = useState<
+    OrderStatus | "Todos" | "Completados"
+  >("Todos");
+  // Aparte del filtro de arriba, un interruptor propio para no cargar (ni
+  // mostrar) los completados salvo que se pidan explícitamente — pueden ser
+  // muchísimos con el tiempo y no siempre hacen falta.
+  const [showCompleted, setShowCompleted] = useState(false);
+  const viewingCompletedOnly = activeStatus === "Completados";
+  const completedSectionVisible = showCompleted || viewingCompletedOnly;
+
+  // La búsqueda de completados va al servidor (ver el useInfiniteQuery más
+  // abajo), así que se debounça para no lanzar una petición por cada letra.
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   // Confirmaciones pendientes (cancelar / eliminar / cerrar mesa), en vez
   // de window.confirm()
@@ -272,6 +247,9 @@ export default function OrdersManager() {
   );
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
+  // Pedidos activos (mesa todavía abierta): un conjunto siempre acotado, se
+  // cargan enteros de una vez. Los completados son harina de otro costal
+  // (ver más abajo).
 
   const {
     data: orders = [],
@@ -287,7 +265,43 @@ export default function OrdersManager() {
     ? getErrorMessage(queryError, "Error al cargar los pedidos")
     : null;
 
+  const COMPLETED_PAGE_SIZE = 30;
+
+  // Pedidos completados (mesa ya cerrada y cobrada): un restaurante con
+  // años de historial puede tener decenas de miles, así que se piden
+  // paginados con cursor y solo cuando la sección está visible — nunca de
+  // golpe.
+  const {
+    data: completedPages,
+    isLoading: completedLoading,
+    isFetchingNextPage: completedFetchingMore,
+    fetchNextPage: fetchMoreCompleted,
+    hasNextPage: hasMoreCompleted,
+    error: completedQueryError,
+  } = useInfiniteQuery({
+    queryKey: ["orders-completed", id, debouncedSearch],
+    queryFn: ({ pageParam }) =>
+      ordersApi.listCompleted(id, {
+        cursor: pageParam,
+        search: debouncedSearch,
+        limit: COMPLETED_PAGE_SIZE,
+      }),
+    initialPageParam: null as number | null,
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    enabled: !!id && completedSectionVisible,
+  });
+  const completedOrders = useMemo(
+    () => completedPages?.pages.flatMap((p) => p.orders) ?? [],
+    [completedPages],
+  );
+  const completedError = completedQueryError
+    ? getErrorMessage(completedQueryError, "Error al cargar los completados")
+    : null;
+
   // ── Filtering ─────────────────────────────────────────────────────────────
+  // Ojo: "Completados" no es un OrderStatus real, así que al seleccionarlo
+  // ningún pedido activo lo cumple — el efecto es vaciar esta lista y dejar
+  // solo la sección de completados, sin necesidad de una rama aparte.
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -300,7 +314,8 @@ export default function OrdersManager() {
           o.items.some((i) => i.dishName.toLowerCase().includes(q)) ||
           String(o.id).includes(q);
         const matchesStatus =
-          activeStatus === "Todos" || o.status === activeStatus;
+          activeStatus === "Todos" ||
+          (activeStatus !== "Completados" && o.status === activeStatus);
         return matchesSearch && matchesStatus;
       })
       .sort(
@@ -399,9 +414,39 @@ export default function OrdersManager() {
     if (deleteConfirm) deleteMutation.mutate(deleteConfirm.id);
   };
 
+  // Un único punto para renderizar una tarjeta de pedido: la usan tanto la
+  // rejilla de "activos" como la de "completados", con las mismas acciones.
+  const renderOrderCard = (order: Order) => (
+    <OrderCard
+      key={order.id}
+      order={order}
+      updating={
+        statusMutation.isPending &&
+        statusMutation.variables?.orderId === order.id
+      }
+      closingTable={
+        closeSessionMutation.isPending &&
+        closeSessionMutation.variables === order.tableSessionId
+      }
+      sessionStillActive={sessionsWithActiveOrders.has(order.tableSessionId)}
+      onAdvance={() => {
+        const next = NEXT_ACTION[order.status];
+        if (next) handleStatusChange(order, next.next);
+      }}
+      onCancel={() => setCancelConfirm(order)}
+      onEdit={() => navigate(`/restaurant/${slug}/orders/${order.id}`)}
+      onReorder={() =>
+        navigate(`/restaurant/${slug}/orders/new?table=${order.tableNumber}`)
+      }
+      onCloseTable={() => setCloseTableConfirm(order)}
+      onPrint={() => void printOrderTicket(order)}
+      onDelete={() => setDeleteConfirm(order)}
+    />
+  );
+
   // ─── Render ───────────────────────────────────────────────────────────────
 
-  if (error) {
+  if (error && !viewingCompletedOnly) {
     return (
       <div className="px-6 lg:px-8 py-6 w-full">
         <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl px-5 py-4 text-sm text-red-700 dark:text-red-400">
@@ -465,7 +510,9 @@ export default function OrdersManager() {
           <select
             value={activeStatus}
             onChange={(e) =>
-              setActiveStatus(e.target.value as OrderStatus | "Todos")
+              setActiveStatus(
+                e.target.value as OrderStatus | "Todos" | "Completados",
+              )
             }
             title="Filtrar por estado"
             className="w-full lg:w-auto appearance-none bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl pl-10 pr-9 py-3 text-base font-semibold text-zinc-700 dark:text-zinc-300 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30 transition-colors cursor-pointer"
@@ -476,9 +523,25 @@ export default function OrdersManager() {
                 {STATUS_LABEL[s]}
               </option>
             ))}
+            <option value="Completados">{COMPLETED_LABEL}</option>
           </select>
           <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
         </div>
+
+        {/* Los completados pueden ser muchísimos con el tiempo: aparte
+            (arriba) permite ver solo esos, este interruptor decide si
+            además se muestran (paginados) debajo de los activos. */}
+        {!viewingCompletedOnly && (
+          <label className="flex items-center gap-2 shrink-0 px-1 lg:px-0 py-1 text-sm font-medium text-zinc-600 dark:text-zinc-400 select-none cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showCompleted}
+              onChange={(e) => setShowCompleted(e.target.checked)}
+              className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-teal-600 focus:ring-teal-500/40 cursor-pointer"
+            />
+            Mostrar completados
+          </label>
+        )}
 
         {/* Stats bar */}
         <div className="grid grid-cols-2 lg:flex lg:items-center gap-2 lg:gap-x-6 lg:shrink-0 lg:px-5 lg:py-3.5 lg:bg-white lg:dark:bg-zinc-900 lg:border lg:border-zinc-200 lg:dark:border-zinc-800 lg:rounded-xl">
@@ -515,66 +578,107 @@ export default function OrdersManager() {
         </div>
       </div>
 
-      {/* Rejilla de pedidos */}
-      {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[1920px]:grid-cols-6 min-[2560px]:grid-cols-7 gap-3">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div
-              key={i}
-              className="h-52 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl animate-pulse"
-            />
-          ))}
-        </div>
-      ) : filtered.length > 0 ? (
-        // Layout tipo masonry en vez de grid clásico, para que cada tarjeta
-        // ocupe solo el alto que necesita sin desperdiciar espacio.
-        <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 2xl:columns-5 min-[1920px]:columns-6 min-[2560px]:columns-7 gap-3">
-          {filtered.map((order) => (
-            <OrderCard
-              key={order.id}
-              order={order}
-              updating={
-                statusMutation.isPending &&
-                statusMutation.variables?.orderId === order.id
-              }
-              closingTable={
-                closeSessionMutation.isPending &&
-                closeSessionMutation.variables === order.tableSessionId
-              }
-              sessionStillActive={sessionsWithActiveOrders.has(
-                order.tableSessionId,
+      {/* Pedidos activos */}
+      {!viewingCompletedOnly &&
+        (loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[1920px]:grid-cols-6 min-[2560px]:grid-cols-7 gap-3">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div
+                key={i}
+                className="h-52 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl animate-pulse"
+              />
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-5 py-16 text-center text-zinc-500 text-sm">
+            {search
+              ? `No se encontraron pedidos para «${search}».`
+              : "No hay pedidos activos."}
+          </div>
+        ) : (
+          // Layout tipo masonry en vez de grid clásico, para que cada
+          // tarjeta ocupe solo el alto que necesita sin desperdiciar
+          // espacio.
+          <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 2xl:columns-5 min-[1920px]:columns-6 min-[2560px]:columns-7 gap-3">
+            {filtered.map(renderOrderCard)}
+          </div>
+        ))}
+
+      {/* Pedidos completados: aparte y paginados — nunca de golpe */}
+      {completedSectionVisible && (
+        <>
+          {!viewingCompletedOnly && (
+            <div className="flex items-center gap-3 my-6">
+              <hr className="flex-1 border-zinc-200 dark:border-zinc-800" />
+              <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">
+                Completados
+              </span>
+              <hr className="flex-1 border-zinc-200 dark:border-zinc-800" />
+            </div>
+          )}
+
+          {completedError ? (
+            <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl px-5 py-4 text-sm text-red-700 dark:text-red-400">
+              {completedError}
+            </div>
+          ) : completedLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[1920px]:grid-cols-6 min-[2560px]:grid-cols-7 gap-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-40 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl animate-pulse"
+                />
+              ))}
+            </div>
+          ) : completedOrders.length === 0 ? (
+            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-5 py-16 text-center text-zinc-500 text-sm">
+              {debouncedSearch
+                ? `No se encontraron pedidos completados para «${debouncedSearch}».`
+                : "No hay pedidos completados."}
+            </div>
+          ) : (
+            <>
+              <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 2xl:columns-5 min-[1920px]:columns-6 min-[2560px]:columns-7 gap-3">
+                {completedOrders.map(renderOrderCard)}
+              </div>
+              {hasMoreCompleted && (
+                <div className="flex justify-center mt-5">
+                  <button
+                    onClick={() => void fetchMoreCompleted()}
+                    disabled={completedFetchingMore}
+                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl transition-colors disabled:opacity-50"
+                  >
+                    {completedFetchingMore && <Spinner />}
+                    Cargar más
+                  </button>
+                </div>
               )}
-              onAdvance={() => {
-                const next = NEXT_ACTION[order.status];
-                if (next) handleStatusChange(order, next.next);
-              }}
-              onCancel={() => setCancelConfirm(order)}
-              onEdit={() => navigate(`/restaurant/${slug}/orders/${order.id}`)}
-              onReorder={() =>
-                navigate(
-                  `/restaurant/${slug}/orders/new?table=${order.tableNumber}`,
-                )
-              }
-              onCloseTable={() => setCloseTableConfirm(order)}
-              onPrint={() => void printOrderTicket(order)}
-              onDelete={() => setDeleteConfirm(order)}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-5 py-16 text-center text-zinc-500 text-sm">
-          {search
-            ? `No se encontraron pedidos para «${search}».`
-            : "No hay pedidos aún."}
-        </div>
+            </>
+          )}
+        </>
       )}
 
       <p className="text-xs text-zinc-600 mt-4">
-        {filtered.length} resultado{filtered.length !== 1 ? "s" : ""}
-        {activeStatus !== "Todos" && (
-          <span className="ml-2 text-teal-700/70 dark:text-teal-500/60">
-            · filtrado por {STATUS_LABEL[activeStatus as OrderStatus]}
-          </span>
+        {viewingCompletedOnly ? (
+          <>
+            {completedOrders.length} completado
+            {completedOrders.length !== 1 ? "s" : ""} cargado
+            {completedOrders.length !== 1 ? "s" : ""}
+            {hasMoreCompleted && (
+              <span className="ml-2 text-teal-700/70 dark:text-teal-500/60">
+                · hay más, pulsa "Cargar más"
+              </span>
+            )}
+          </>
+        ) : (
+          <>
+            {filtered.length} resultado{filtered.length !== 1 ? "s" : ""}
+            {activeStatus !== "Todos" && (
+              <span className="ml-2 text-teal-700/70 dark:text-teal-500/60">
+                · filtrado por {STATUS_LABEL[activeStatus as OrderStatus]}
+              </span>
+            )}
+          </>
         )}
       </p>
 
@@ -622,7 +726,7 @@ export default function OrdersManager() {
               no se puede deshacer.
             </>
           }
-          confirmLabel="Cerrar mesa"
+          confirmLabel="Cerrar y cobrar"
           cancelLabel="Volver"
           tone="warning"
           loading={

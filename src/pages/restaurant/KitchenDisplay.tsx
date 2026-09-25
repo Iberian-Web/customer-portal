@@ -46,10 +46,13 @@ const COLUMNS: Column[] = [
     emptyLabel: "No hay comandas en cocina",
     accent: "bg-blue-500",
     span: "md:col-span-3",
-    // Ocupa 3/4 del ancho. Layout de columnas tipo mampostería/masonry (en
-    // vez de un grid clásico): cada ticket ocupa solo el alto que necesita,
-    // así un pedido de 1 plato no deja el mismo hueco vacío que uno de 20.
-    grid: "columns-1 sm:columns-2 lg:columns-3 xl:columns-4 2xl:columns-5 min-[1920px]:columns-6 min-[2560px]:columns-8",
+    // Antes usaba un layout de columnas tipo mampostería (columns-*) para
+    // no dejar el mismo hueco vacío en un pedido de 1 plato que en uno de
+    // 20, pero combinado con el scroll vertical del contenedor daba
+    // problemas serios en móvil (a veces ni se podía hacer scroll). Usa
+    // exactamente el mismo mecanismo que "Listo" (grid clásico), solo que
+    // con más columnas en pantallas anchas.
+    grid: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[1920px]:grid-cols-6 min-[2560px]:grid-cols-8",
   },
   {
     key: "READY",
@@ -333,7 +336,7 @@ export default function KitchenDisplay() {
 
       {/* Tablero */}
       <div
-        className={`flex-1 overflow-hidden grid grid-cols-1 ${
+        className={`flex-1 min-w-0 overflow-hidden grid grid-cols-1 ${
           readyCollapsed ? "md:grid-cols-[1fr_4rem]" : "md:grid-cols-4"
         } divide-y md:divide-y-0 md:divide-x divide-zinc-200 dark:divide-zinc-800`}
       >
@@ -342,7 +345,7 @@ export default function KitchenDisplay() {
           const kitchenOrders = byColumn[kitchen.key];
           return (
             <div
-              className={`flex flex-col min-h-0 ${readyCollapsed ? "" : "md:col-span-3"}`}
+              className={`flex flex-col min-h-0 min-w-0 ${readyCollapsed ? "" : "md:col-span-3"}`}
             >
               <div className="shrink-0">
                 <div className={`h-1 ${kitchen.accent}`} />
@@ -356,7 +359,7 @@ export default function KitchenDisplay() {
                 </div>
               </div>
               <div
-                className={`flex-1 overflow-y-auto px-4 pb-4 ${kitchen.grid} gap-3`}
+                className={`flex-1 min-w-0 overflow-y-auto overflow-x-hidden px-4 pb-4 grid ${kitchen.grid} items-start gap-3 auto-rows-min`}
               >
                 {loading ? (
                   [1, 2].map((i) => (
@@ -435,7 +438,7 @@ export default function KitchenDisplay() {
           }
 
           return (
-            <div className="flex flex-col min-h-0 md:col-span-1">
+            <div className="flex flex-col min-h-0 min-w-0 md:col-span-1">
               <div className="shrink-0">
                 <div className={`h-1 ${ready.accent}`} />
                 <div className="flex items-center justify-between px-4 py-4">
@@ -462,7 +465,7 @@ export default function KitchenDisplay() {
                 </div>
               </div>
               <div
-                className={`flex-1 overflow-y-auto px-4 pb-4 grid ${ready.grid} items-start gap-3 auto-rows-min`}
+                className={`flex-1 min-w-0 overflow-y-auto overflow-x-hidden px-4 pb-4 grid ${ready.grid} items-start gap-3 auto-rows-min`}
               >
                 {loading ? (
                   [1, 2].map((i) => (
