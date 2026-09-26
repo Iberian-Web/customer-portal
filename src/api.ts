@@ -5,6 +5,21 @@ const BASE = import.meta.env.VITE_API_URL ?? "";
 
 // ─── Core fetch wrapper ───────────────────────────────────────────────────────
 
+// Error de API con el status HTTP adjunto: permite a quien llama distinguir
+// p. ej. un 409 (conflicto de concurrencia optimista) de otros errores sin
+// tener que comparar el texto del mensaje.
+export class ApiClientError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
+export function isConflictError(error: unknown): boolean {
+  return error instanceof ApiClientError && error.status === 409;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     ...init,
@@ -17,7 +32,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error((body as { error?: string }).error ?? `HTTP ${res.status}`);
+    throw new ApiClientError(
+      (body as { error?: string }).error ?? `HTTP ${res.status}`,
+      res.status,
+    );
   }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
@@ -216,7 +234,14 @@ export type OrderCreate = {
 
 type OrderUpdate = Partial<
   Omit<OrderCreate, "items"> & { status: OrderStatus; items: OrderItemInput[] }
->;
+> & {
+  // Control de concurrencia optimista: el `updatedAt` que teníamos cuando
+  // se cargó el pedido. Si ya no coincide con el actual en el servidor
+  // (alguien más lo modificó mientras tanto), la petición se rechaza con
+  // 409 en vez de pisar silenciosamente ese cambio — ver getErrorMessage /
+  // isConflictError para mostrarlo en la UI.
+  expectedUpdatedAt?: string;
+};
 
 // Sesión de mesa combinada — todos los pedidos de la misma sentada, con
 // sus líneas fusionadas (mismo plato + precio = una sola línea) y el total
@@ -249,6 +274,8 @@ export type RestaurantTable = {
   posCol: number;
   width: number;
   height: number;
+  createdAt: string;
+  updatedAt: string;
   status: TableMapStatus;
   tableSessionId: number | null;
   waiterName: string;
@@ -267,9 +294,23 @@ export type RestaurantTableCreate = {
   height?: number;
 };
 
-export type RestaurantTableUpdate = Partial<RestaurantTableCreate>;
+export type RestaurantTableUpdate = Partial<RestaurantTableCreate> & {
+  // Igual que en pedidos: control de concurrencia optimista.
+  expectedUpdatedAt?: string;
+};
+
+export type AnalyticsPeriod = {
+  granularity: "month" | "day";
+  month: string; // "2026-09"
+  label: string; // "Septiembre 2026"
+  from: string; // "2026-09-01"
+  to: string; // "2026-09-30"
+  isCurrentMonth: boolean;
+  earliestMonth: string; // "2026-03" — mes de alta del cliente, límite para ir hacia atrás
+};
 
 type AnalyticsSummary = {
+  period: AnalyticsPeriod;
   revenue: { total: number; today: number; averageOrderValue: number };
   orders: {
     total: number;
@@ -293,11 +334,23 @@ export const portalApi = {
 };
 
 // ─── Analytics endpoints ──────────────────────────────────────────────────────
+// Sin `month` ni `day`, el backend responde con el mes natural en curso.
 
 export const analyticsApi = {
-  get: (instanceId: number) =>
-    request<AnalyticsSummary>(`/api/instances/${instanceId}/analytics`),
+  get: (instanceId: number, filters?: { month?: string; day?: string }) => {
+    const params = new URLSearchParams();
+    if (filters?.month) params.set("month", filters.month);
+    if (filters?.day) params.set("day", filters.day);
+    const qs = params.toString();
+    return request<AnalyticsSummary>(
+      `/api/instances/${instanceId}/analytics${qs ? `?${qs}` : ""}`,
+    );
+  },
 };
+
+/** URL del informe mensual en PDF (se abre en pestaña nueva, no pasa por `request`). */
+export const analyticsPdfUrl = (instanceId: number, month: string) =>
+  `${BASE}/api/instances/${instanceId}/analytics/pdf?month=${encodeURIComponent(month)}`;
 
 // ─── Menu endpoints ───────────────────────────────────────────────────────────
 
@@ -477,10 +530,14 @@ export const ordersApi = {
       body: JSON.stringify(data),
     }),
 
-  updateStatus: (orderId: number, status: OrderStatus) =>
+  updateStatus: (
+    orderId: number,
+    status: OrderStatus,
+    expectedUpdatedAt?: string,
+  ) =>
     request<Order>(`/api/orders/${orderId}`, {
       method: "PUT",
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, expectedUpdatedAt }),
     }),
 
   remove: (orderId: number) =>
@@ -525,3 +582,66 @@ export const tablesApi = {
   remove: (tableId: number) =>
     request<void>(`/api/tables/${tableId}`, { method: "DELETE" }),
 };
+
+// ─── Histórico de auditoría ───────────────────────────────────────────────────
+// Quién canceló/eliminó un pedido, cerró una mesa o eliminó una mesa del
+// mapa, y cuándo — ver AuditLog en el backend.
+
+export type AuditLogAction =
+  | "ORDER_CANCELLED"
+  | "ORDER_DELETED"
+  | "TABLE_SESSION_CLOSED"
+  | "TABLE_DELETED";
+
+export type AuditLogEntry = {
+  id: number;
+  instanceId: number;
+  action: AuditLogAction;
+  actorName: string;
+  tableNumber: number | null;
+  summary: string;
+  createdAt: string;
+};
+
+export const auditLogApi = {
+  list: (instanceId: number, filters?: { tableNumber?: number }) => {
+    const params = new URLSearchParams();
+    if (filters?.tableNumber !== undefined) {
+      params.set("tableNumber", String(filters.tableNumber));
+    }
+    const qs = params.toString();
+    return request<AuditLogEntry[]>(
+      `/api/instances/${instanceId}/audit-log${qs ? `?${qs}` : ""}`,
+    );
+  },
+};
+
+// ─── Notificaciones en tiempo real (SSE) ───────────────────────────────────────
+// Sustituye/complementa al polling: el backend avisa por Server-Sent Events
+// cuando cambia algo (pedido, mesa...) de la instancia. No lleva el dato
+// completo — el consumidor reacciona invalidando/recargando su propia
+// query. Devuelve una función para cerrar la conexión.
+
+export type RealtimeEvent = {
+  type: "order" | "table" | "table-session";
+} & Record<string, unknown>;
+
+export function subscribeToInstanceEvents(
+  instanceId: number,
+  onEvent: (event: RealtimeEvent) => void,
+): () => void {
+  const source = new EventSource(`${BASE}/api/instances/${instanceId}/events`, {
+    withCredentials: true,
+  });
+  source.onmessage = (msg) => {
+    try {
+      onEvent(JSON.parse(msg.data) as RealtimeEvent);
+    } catch {
+      // Mensaje no-JSON (p. ej. un comentario de keep-alive): se ignora.
+    }
+  };
+  // Sin manejo especial de onerror: EventSource reintenta la conexión solo
+  // (backoff nativo del navegador), y el polling de red por detrás sigue
+  // sirviendo de red de seguridad mientras tanto.
+  return () => source.close();
+}

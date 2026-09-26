@@ -20,6 +20,7 @@ export function FormPageHeader({
         onClick={onBack}
         className="p-2.5 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors"
         title="Volver"
+        aria-label="Volver"
       >
         <Icon name="arrowLeft" className="w-5 h-5" />
       </button>

@@ -5,6 +5,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   ordersApi,
   menusApi,
+  isConflictError,
   type Order,
   type OrderCreate,
   type Menu,
@@ -283,7 +284,10 @@ export default function OrderForm() {
   const submitMutation = useMutation({
     mutationFn: async (payload: OrderCreate) => {
       if (isEdit) {
-        await ordersApi.update(Number(orderId), payload);
+        await ordersApi.update(Number(orderId), {
+          ...payload,
+          expectedUpdatedAt: existingOrder?.updatedAt,
+        });
       } else {
         await ordersApi.create(id, payload);
       }
@@ -295,8 +299,15 @@ export default function OrderForm() {
       }
       goBack();
     },
-    onError: (submitError: unknown) =>
-      setError(getErrorMessage(submitError, "Error al guardar el pedido")),
+    onError: (submitError: unknown) => {
+      // Conflicto de concurrencia: alguien más cambió este pedido mientras
+      // se editaba. Se refresca para que, si el camarero reintenta, parta
+      // ya de los datos actuales en vez de volver a chocar.
+      if (isConflictError(submitError)) {
+        void queryClient.invalidateQueries({ queryKey: ["order", orderId] });
+      }
+      setError(getErrorMessage(submitError, "Error al guardar el pedido"));
+    },
     onSettled: () => setSavingKind(null),
   });
 

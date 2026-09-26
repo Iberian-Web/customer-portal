@@ -279,6 +279,9 @@ function ReservationCard({
           title={
             expanded ? "Ocultar contacto y acciones" : "Ver contacto y acciones"
           }
+          aria-label={
+            expanded ? "Ocultar contacto y acciones" : "Ver contacto y acciones"
+          }
           className={`p-2 rounded-lg transition-colors ${
             expanded
               ? "text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-500/10"
@@ -296,6 +299,7 @@ function ReservationCard({
           <button
             onClick={onEdit}
             title="Editar reserva"
+            aria-label="Editar reserva"
             className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
           >
             <Icon name="pencil" className="w-4 h-4" strokeWidth={1.8} />
@@ -303,6 +307,7 @@ function ReservationCard({
           <button
             onClick={onDelete}
             title="Eliminar"
+            aria-label="Eliminar"
             className="p-2 text-zinc-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded-lg transition-colors"
           >
             <Icon name="trash" className="w-4 h-4" strokeWidth={1.8} />

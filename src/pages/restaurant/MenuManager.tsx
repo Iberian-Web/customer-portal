@@ -106,6 +106,7 @@ function HorizontalScroller({ children }: { children: React.ReactNode }) {
         type="button"
         onClick={() => scrollBy(-240)}
         title="Desplazar a la izquierda"
+        aria-label="Desplazar a la izquierda"
         className="shrink-0 p-1.5 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
       >
         <Icon name="chevronLeft" className="w-4 h-4" strokeWidth={2.5} />
@@ -127,6 +128,7 @@ function HorizontalScroller({ children }: { children: React.ReactNode }) {
         type="button"
         onClick={() => scrollBy(240)}
         title="Desplazar a la derecha"
+        aria-label="Desplazar a la derecha"
         className="shrink-0 p-1.5 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
       >
         <Icon name="chevronRight" className="w-4 h-4" strokeWidth={2.5} />
@@ -423,6 +425,7 @@ export default function MenuManager() {
                       !newSectionName.trim() || createSectionMutation.isPending
                     }
                     title="Añadir sección"
+                    aria-label="Añadir sección"
                     className="shrink-0 p-1.5 text-teal-700 dark:text-teal-400 hover:bg-teal-100 dark:hover:bg-teal-500/10 disabled:opacity-40 rounded-lg transition-colors"
                   >
                     {createSectionMutation.isPending ? (
@@ -439,6 +442,7 @@ export default function MenuManager() {
                     type="button"
                     onClick={() => setAddingSection(false)}
                     title="Cancelar"
+                    aria-label="Cancelar"
                     className="shrink-0 p-1.5 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
                   >
                     <Icon name="close" className="w-4 h-4" />
@@ -449,6 +453,7 @@ export default function MenuManager() {
                   type="button"
                   onClick={() => setAddingSection(true)}
                   title="Nueva sección"
+                  aria-label="Nueva sección"
                   className="shrink-0 flex items-center gap-1.5 px-3 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-teal-50 dark:hover:bg-teal-500/10 text-zinc-600 dark:text-zinc-400 hover:text-teal-700 dark:hover:text-teal-400 border border-dashed border-zinc-300 dark:border-zinc-700 hover:border-teal-400 dark:hover:border-teal-500/40 rounded-xl text-sm font-semibold transition-colors"
                 >
                   <Icon name="plus" className="w-4 h-4" strokeWidth={2.5} />
@@ -468,6 +473,7 @@ export default function MenuManager() {
                       disabled={idx === 0 || reorderingId === section.id}
                       onClick={() => moveSection(section, -1)}
                       title="Mover antes"
+                      aria-label="Mover antes"
                       className="p-0.5 text-zinc-600 hover:text-zinc-700 dark:hover:text-zinc-300 disabled:opacity-20 disabled:hover:text-zinc-600 transition-colors"
                     >
                       <Icon
@@ -484,6 +490,7 @@ export default function MenuManager() {
                       }
                       onClick={() => moveSection(section, 1)}
                       title="Mover después"
+                      aria-label="Mover después"
                       className="p-0.5 text-zinc-600 hover:text-zinc-700 dark:hover:text-zinc-300 disabled:opacity-20 disabled:hover:text-zinc-600 transition-colors"
                     >
                       <Icon
@@ -524,6 +531,7 @@ export default function MenuManager() {
                           setEditingSectionName(section.name);
                         }}
                         title="Renombrar sección"
+                        aria-label="Renombrar sección"
                         className="p-1.5 text-zinc-500 hover:text-teal-700 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-400/10 rounded-lg transition-colors"
                       >
                         <Icon name="pencil" className="w-3.5 h-3.5" />
@@ -532,6 +540,7 @@ export default function MenuManager() {
                         type="button"
                         onClick={() => setDeleteSectionConfirm(section)}
                         title="Eliminar"
+                        aria-label="Eliminar"
                         className="p-1.5 text-zinc-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded-lg transition-colors"
                       >
                         <Icon name="close" className="w-3.5 h-3.5" />
@@ -597,6 +606,7 @@ export default function MenuManager() {
                         }}
                         className="p-1.5 text-zinc-600 hover:text-zinc-700 dark:hover:text-zinc-300 rounded-lg transition-colors"
                         title="Renombrar"
+                        aria-label="Renombrar"
                       >
                         <Icon name="pencil" className="w-3.5 h-3.5" />
                       </button>
@@ -604,6 +614,7 @@ export default function MenuManager() {
                         onClick={() => setDeleteMenuConfirm(menu)}
                         className="p-1.5 text-zinc-600 hover:text-red-700 dark:hover:text-red-400 rounded-lg transition-colors"
                         title="Eliminar"
+                        aria-label="Eliminar"
                       >
                         <Icon name="trash" className="w-3.5 h-3.5" />
                       </button>
@@ -742,6 +753,7 @@ export default function MenuManager() {
                               }
                               className="p-2 text-zinc-500 hover:text-teal-700 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-400/10 rounded-lg transition-colors"
                               title="Editar"
+                              aria-label="Editar"
                             >
                               <Icon name="pencil" className="w-4 h-4" />
                             </button>
@@ -749,6 +761,7 @@ export default function MenuManager() {
                               onClick={() => setDeleteDishConfirm(dish)}
                               className="p-2 text-zinc-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded-lg transition-colors"
                               title="Eliminar"
+                              aria-label="Eliminar"
                             >
                               <Icon name="trash" className="w-4 h-4" />
                             </button>

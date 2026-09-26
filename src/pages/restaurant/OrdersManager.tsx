@@ -7,6 +7,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../auth/useAuth";
 import {
   Pencil,
   Printer,
@@ -22,10 +23,12 @@ import {
 import {
   ordersApi,
   tableSessionsApi,
+  isConflictError,
   type Order,
   type OrderStatus,
 } from "../../api";
 import { useRestaurantInstance } from "../../hooks/useRestaurantInstance";
+import { useInstanceEvents } from "../../hooks/useInstanceEvents";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { Spinner } from "../../components/icons";
 import { getErrorMessage } from "../../utils/errors";
@@ -151,6 +154,7 @@ function OrderCard({
               <button
                 onClick={onReorder}
                 title={`Nuevo pedido para la mesa ${order.tableNumber}`}
+                aria-label={`Nuevo pedido para la mesa ${order.tableNumber}`}
                 className="p-2 text-zinc-500 hover:text-teal-700 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-500/10 rounded-lg transition-colors"
               >
                 <RotateCcw className="w-4 h-4" strokeWidth={1.8} />
@@ -160,6 +164,11 @@ function OrderCard({
                   disabled={closingTable || sessionStillActive}
                   onClick={onCloseTable}
                   title={
+                    sessionStillActive
+                      ? "Todavía hay otro pedido en curso en esta mesa"
+                      : "Cerrar y cobrar la cuenta combinada"
+                  }
+                  aria-label={
                     sessionStillActive
                       ? "Todavía hay otro pedido en curso en esta mesa"
                       : "Cerrar y cobrar la cuenta combinada"
@@ -174,6 +183,7 @@ function OrderCard({
             <button
               onClick={onEdit}
               title="Editar pedido"
+              aria-label="Editar pedido"
               className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
             >
               <Pencil className="w-4 h-4" strokeWidth={1.8} />
@@ -182,6 +192,7 @@ function OrderCard({
           <button
             onClick={onPrint}
             title="Imprimir ticket"
+            aria-label="Imprimir ticket"
             className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
           >
             <Printer className="w-4 h-4" strokeWidth={1.8} />
@@ -191,6 +202,7 @@ function OrderCard({
               disabled={updating}
               onClick={onCancel}
               title="Cancelar pedido"
+              aria-label="Cancelar pedido"
               className="p-2 text-zinc-500 hover:text-amber-700 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-400/10 rounded-lg transition-colors disabled:opacity-50"
             >
               <XCircle className="w-4 h-4" strokeWidth={1.8} />
@@ -199,6 +211,7 @@ function OrderCard({
           <button
             onClick={onDelete}
             title="Eliminar"
+            aria-label="Eliminar"
             className="p-2 text-zinc-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded-lg transition-colors"
           >
             <Trash2 className="w-4 h-4" strokeWidth={1.8} />
@@ -215,6 +228,8 @@ export default function OrdersManager() {
   const navigate = useNavigate();
   const instance = useRestaurantInstance();
   const id = instance?.id ?? 0;
+  const { access } = useAuth();
+  const restaurantName = access?.company || access?.name;
   const slug = instance?.slug ?? "";
   const queryClient = useQueryClient();
 
@@ -264,6 +279,10 @@ export default function OrdersManager() {
   const error = queryError
     ? getErrorMessage(queryError, "Error al cargar los pedidos")
     : null;
+
+  // Avisos en tiempo real (SSE): en vez de depender solo del polling de
+  // abajo, en cuanto cocina/otro camarero cambia algo se refresca al momento.
+  useInstanceEvents(id, [["orders", id]]);
 
   const COMPLETED_PAGE_SIZE = 30;
 
@@ -357,25 +376,42 @@ export default function OrdersManager() {
     mutationFn: ({
       orderId,
       status,
+      expectedUpdatedAt,
     }: {
       orderId: number;
       status: OrderStatus;
-    }) => ordersApi.updateStatus(orderId, status),
+      expectedUpdatedAt?: string;
+    }) => ordersApi.updateStatus(orderId, status, expectedUpdatedAt),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["orders", id] });
       setCancelConfirm(null);
     },
-    onError: (e: unknown) =>
-      alert(getErrorMessage(e, "Error al actualizar el pedido")),
+    onError: (e: unknown) => {
+      // Conflicto de concurrencia (otra persona lo cambió mientras tanto):
+      // se refresca la lista al momento para que se vea el estado real,
+      // en vez de dejar la tarjeta desactualizada en pantalla.
+      if (isConflictError(e)) {
+        void queryClient.invalidateQueries({ queryKey: ["orders", id] });
+      }
+      alert(getErrorMessage(e, "Error al actualizar el pedido"));
+    },
   });
 
   const handleStatusChange = (order: Order, newStatus: OrderStatus) => {
-    statusMutation.mutate({ orderId: order.id, status: newStatus });
+    statusMutation.mutate({
+      orderId: order.id,
+      status: newStatus,
+      expectedUpdatedAt: order.updatedAt,
+    });
   };
 
   const handleCancelConfirmed = () => {
     if (!cancelConfirm) return;
-    statusMutation.mutate({ orderId: cancelConfirm.id, status: "CANCELLED" });
+    statusMutation.mutate({
+      orderId: cancelConfirm.id,
+      status: "CANCELLED",
+      expectedUpdatedAt: cancelConfirm.updatedAt,
+    });
   };
 
   // ── Cerrar mesa (cobrar) ─────────────────────────────────────────────────
@@ -439,7 +475,9 @@ export default function OrdersManager() {
         navigate(`/restaurant/${slug}/orders/new?table=${order.tableNumber}`)
       }
       onCloseTable={() => setCloseTableConfirm(order)}
-      onPrint={() => void printOrderTicket(order)}
+      onPrint={() =>
+        void printOrderTicket(order, restaurantName, access?.address)
+      }
       onDelete={() => setDeleteConfirm(order)}
     />
   );

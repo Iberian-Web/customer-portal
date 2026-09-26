@@ -1,9 +1,22 @@
 // customer-portal/src/pages/restaurant/KitchenDisplay.tsx
-import { useState, useEffect, useRef, useMemo } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Clock } from "lucide-react";
-import { ordersApi, type Order, type OrderStatus } from "../../api";
+import {
+  ordersApi,
+  isConflictError,
+  type Order,
+  type OrderStatus,
+} from "../../api";
 import { useRestaurantInstance } from "../../hooks/useRestaurantInstance";
+import { useInstanceEvents } from "../../hooks/useInstanceEvents";
 import { Icon } from "../../components/icons";
 import { getErrorMessage } from "../../utils/errors";
 import { NEXT_ACTION } from "../../utils/orderStatus";
@@ -17,8 +30,11 @@ import {
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-// Refresca la lista de pedidos cada X ms (varios dispositivos pueden crear pedidos)
-const POLL_INTERVAL_MS = 5000;
+// Red de seguridad por si el stream de tiempo real (SSE) se cae y el
+// navegador tarda en reconectar: antes era la única forma de refrescar
+// (cada 5s); ahora los avisos en tiempo real hacen ese trabajo al momento y
+// esto solo cubre el hueco improbable de una desconexión.
+const POLL_INTERVAL_MS = 30000;
 // Recalcula el tiempo transcurrido de cada ticket cada X ms
 const CLOCK_TICK_MS = 15000;
 // Cuánto tiempo se resalta un pedido recién llegado a "Nuevos"
@@ -162,11 +178,52 @@ function OrderTicket({
           disabled={busy}
           onClick={onCancel}
           title="Cancelar pedido"
+          aria-label="Cancelar pedido"
           className="ml-auto shrink-0 p-2 rounded-lg text-zinc-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors disabled:opacity-50"
         >
           <Icon name="close" className="w-4 h-4" strokeWidth={2} />
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Pequeño cross-fade para cuando el contenido de la columna "Listo" cambia
+ * de golpe entre la vista minimizada (barra con solo los números de mesa) y
+ * la completa (tickets): en vez de que aparezca/desaparezca de un frame a
+ * otro, entra con un fundido de opacidad de 200ms — combinado con la
+ * animación de ancho del contenedor, da la sensación de un solo movimiento
+ * suave en lugar de dos saltos independientes.
+ */
+function FadeSwap({
+  id,
+  className = "",
+  children,
+}: {
+  id: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  const [visible, setVisible] = useState(false);
+  // Ajuste de estado durante el render (en vez de un `setState` síncrono al
+  // principio de un efecto) cuando cambia `id`: es el patrón que React
+  // recomienda para "resetear" el estado ante un cambio de prop sin
+  // provocar un render en cascada desde dentro de un efecto.
+  const [trackedId, setTrackedId] = useState(id);
+  if (id !== trackedId) {
+    setTrackedId(id);
+    setVisible(false);
+  }
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setVisible(true));
+    return () => cancelAnimationFrame(raf);
+  }, [id]);
+  return (
+    <div
+      className={`transition-opacity duration-200 ease-out ${visible ? "opacity-100" : "opacity-0"} ${className}`}
+    >
+      {children}
     </div>
   );
 }
@@ -208,6 +265,11 @@ export default function KitchenDisplay() {
     ? getErrorMessage(queryError, "Error al cargar los pedidos")
     : null;
 
+  // Avisos en tiempo real (SSE): la cocina se entera al instante de un
+  // pedido nuevo o de que otro camarero canceló el suyo, sin esperar al
+  // siguiente sondeo de POLL_INTERVAL_MS.
+  useInstanceEvents(id, [["orders", id]]);
+
   // Detecta pedidos nuevos desde la última carga para resaltarlos
   useEffect(() => {
     if (knownIds.current) {
@@ -241,12 +303,19 @@ export default function KitchenDisplay() {
     mutationFn: ({
       orderId,
       status,
+      expectedUpdatedAt,
     }: {
       orderId: number;
       status: OrderStatus;
-    }) => ordersApi.updateStatus(orderId, status),
+      expectedUpdatedAt?: string;
+    }) => ordersApi.updateStatus(orderId, status, expectedUpdatedAt),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["orders", id] });
+    },
+    onError: (e: unknown) => {
+      if (isConflictError(e)) {
+        void queryClient.invalidateQueries({ queryKey: ["orders", id] });
+      }
     },
   });
 
@@ -258,6 +327,7 @@ export default function KitchenDisplay() {
       await statusMutation.mutateAsync({
         orderId: order.id,
         status: action.next,
+        expectedUpdatedAt: order.updatedAt,
       });
     } catch (e: unknown) {
       alert(getErrorMessage(e, "Error al actualizar el pedido"));
@@ -272,6 +342,7 @@ export default function KitchenDisplay() {
       await statusMutation.mutateAsync({
         orderId: order.id,
         status: "CANCELLED",
+        expectedUpdatedAt: order.updatedAt,
       });
       setCancelConfirm(null);
     } catch (e: unknown) {
@@ -334,19 +405,27 @@ export default function KitchenDisplay() {
         </div>
       </div>
 
-      {/* Tablero */}
+      {/* Tablero.
+          El ancho de la columna "Listo" se anima con `transition-[grid-template-columns]`
+          (mismo mecanismo/duración que el panel expandible de reservas): en
+          vez de saltar entre dos plantillas de grid distintas (4 columnas
+          iguales ↔ "1fr 4rem"), se usa siempre una plantilla de 2 pistas y
+          solo cambia el tamaño de la segunda vía la variable `--ready-w`,
+          que sí se puede animar suavemente. De paso, fijarla en un ancho
+          concreto (en vez de 1/4 del total) evita que en pantallas muy
+          anchas los tickets de "Listo" salgan más anchos que los de "En
+          cocina". */}
       <div
-        className={`flex-1 min-w-0 overflow-hidden grid grid-cols-1 ${
-          readyCollapsed ? "md:grid-cols-[1fr_4rem]" : "md:grid-cols-4"
-        } divide-y md:divide-y-0 md:divide-x divide-zinc-200 dark:divide-zinc-800`}
+        className="flex-1 min-w-0 overflow-hidden grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_var(--ready-w)] transition-[grid-template-columns] duration-300 ease-in-out divide-y md:divide-y-0 md:divide-x divide-zinc-200 dark:divide-zinc-800"
+        style={
+          { "--ready-w": readyCollapsed ? "4rem" : "18rem" } as CSSProperties
+        }
       >
         {(() => {
           const kitchen = COLUMNS[0];
           const kitchenOrders = byColumn[kitchen.key];
           return (
-            <div
-              className={`flex flex-col min-h-0 min-w-0 ${readyCollapsed ? "" : "md:col-span-3"}`}
-            >
+            <div className="flex flex-col min-h-0 min-w-0">
               <div className="shrink-0">
                 <div className={`h-1 ${kitchen.accent}`} />
                 <div className="flex items-center justify-between px-4 py-4">
@@ -399,12 +478,16 @@ export default function KitchenDisplay() {
 
           if (readyCollapsed) {
             return (
-              <div className="flex flex-col min-h-0 bg-zinc-50 dark:bg-zinc-950/40">
+              <FadeSwap
+                id="ready-collapsed"
+                className="flex flex-col min-h-0 bg-zinc-50 dark:bg-zinc-950/40"
+              >
                 <div className={`h-1 ${ready.accent}`} />
                 <button
                   type="button"
                   onClick={() => setReadyCollapsed(false)}
                   title="Mostrar el detalle de los pedidos listos"
+                  aria-label="Mostrar el detalle de los pedidos listos"
                   className="shrink-0 w-full flex flex-row md:flex-col items-center justify-center gap-2 md:gap-1 px-4 md:px-2 py-2.5 md:py-4 border-b border-zinc-200 dark:border-zinc-800 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors"
                 >
                   <Icon
@@ -433,12 +516,15 @@ export default function KitchenDisplay() {
                     </div>
                   ))}
                 </div>
-              </div>
+              </FadeSwap>
             );
           }
 
           return (
-            <div className="flex flex-col min-h-0 min-w-0 md:col-span-1">
+            <FadeSwap
+              id="ready-expanded"
+              className="flex flex-col min-h-0 min-w-0"
+            >
               <div className="shrink-0">
                 <div className={`h-1 ${ready.accent}`} />
                 <div className="flex items-center justify-between px-4 py-4">
@@ -453,6 +539,7 @@ export default function KitchenDisplay() {
                       type="button"
                       onClick={() => setReadyCollapsed(true)}
                       title="Minimizar a barra lateral"
+                      aria-label="Minimizar a barra lateral"
                       className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                     >
                       <Icon
@@ -492,7 +579,7 @@ export default function KitchenDisplay() {
                   ))
                 )}
               </div>
-            </div>
+            </FadeSwap>
           );
         })()}
       </div>

@@ -141,6 +141,7 @@ function SidebarContent({
               onClick={onToggleCollapse}
               className="hidden md:flex w-8 h-8 items-center justify-center text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors shrink-0"
               title={collapsed ? "Expandir menú" : "Colapsar menú"}
+              aria-label={collapsed ? "Expandir menú" : "Colapsar menú"}
             >
               <Icon
                 name="arrowLeft"
@@ -216,6 +217,7 @@ function SidebarContent({
         <button
           onClick={handleLogout}
           title={collapsed ? "Cerrar sesión" : undefined}
+          aria-label={collapsed ? "Cerrar sesión" : undefined}
           className={`w-full px-3 h-9 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 rounded-lg transition-colors text-left flex items-center gap-2.5 ${collapsed ? "justify-center" : ""}`}
         >
           <LogOut className="w-4 h-4 shrink-0" strokeWidth={1.8} />

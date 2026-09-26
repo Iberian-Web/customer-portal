@@ -18,6 +18,7 @@ import {
   Loader2,
   Filter,
   Check,
+  Download,
   type LucideIcon,
 } from "lucide-react";
 
@@ -37,6 +38,7 @@ const ICONS = {
   users: Users,
   filter: Filter,
   check: Check,
+  download: Download,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

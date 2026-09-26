@@ -16,6 +16,7 @@ import {
 } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../auth/useAuth";
 import {
   Pencil,
   Trash2,
@@ -35,11 +36,13 @@ import {
   tablesApi,
   tableSessionsApi,
   ordersApi,
+  isConflictError,
   type RestaurantTable,
   type TableShape,
   type Order,
 } from "../../api";
 import { useRestaurantInstance } from "../../hooks/useRestaurantInstance";
+import { useInstanceEvents } from "../../hooks/useInstanceEvents";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import Modal from "../../components/Modal";
 import { Spinner } from "../../components/icons";
@@ -65,10 +68,12 @@ import { printOrderTicket } from "../../utils/printTicket";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-// Refresca el mapa cada X ms cuando NO se está editando: varios camareros
-// pueden estar tomando pedidos a la vez desde otros dispositivos. Se pausa
-// durante la edición para no pisar el borrador local con datos del servidor.
-const POLL_INTERVAL_MS = 5000;
+// Red de seguridad si el stream de tiempo real (SSE, ver useInstanceEvents)
+// se corta: antes esto era la única forma de enterarse de que otro
+// camarero tomó/cerró un pedido (sondeo cada 5s); ahora basta con un
+// intervalo mucho más largo. Se pausa igualmente durante la edición para no
+// pisar el borrador local con datos del servidor.
+const POLL_INTERVAL_MS = 30000;
 const MIN_ROWS = 6;
 const MIN_COLS = 8;
 const GRID_PADDING = 2;
@@ -179,6 +184,8 @@ export default function TableMap() {
   const navigate = useNavigate();
   const instance = useRestaurantInstance();
   const id = instance?.id ?? 0;
+  const { access } = useAuth();
+  const restaurantName = access?.company || access?.name;
   const slug = instance?.slug ?? "";
   const queryClient = useQueryClient();
 
@@ -253,6 +260,14 @@ export default function TableMap() {
   const selectedLive = selected
     ? (tables.find((t) => t.id === selected.id) ?? selected)
     : null;
+
+  // Avisos en tiempo real (SSE): en cuanto un pedido o una mesa cambian
+  // (desde este dispositivo o desde otro), se refresca al momento en vez de
+  // esperar a POLL_INTERVAL_MS. Se sigue respetando la pausa en editMode.
+  useInstanceEvents(editMode ? undefined : id, [
+    ["tables", id],
+    ["table-session", selectedLive?.tableSessionId],
+  ]);
 
   const { data: session, isLoading: sessionLoading } = useQuery({
     queryKey: ["table-session", selectedLive?.tableSessionId],
@@ -367,6 +382,46 @@ export default function TableMap() {
     setScale(next);
   }
 
+  // Paso de desplazamiento por pulsación de flecha, en px de pantalla.
+  const KEY_PAN_STEP = 60;
+
+  function handleViewportKeyDown(e: React.KeyboardEvent) {
+    switch (e.key) {
+      case "ArrowUp":
+        e.preventDefault();
+        setPan((prev) => ({ ...prev, y: prev.y + KEY_PAN_STEP }));
+        break;
+      case "ArrowDown":
+        e.preventDefault();
+        setPan((prev) => ({ ...prev, y: prev.y - KEY_PAN_STEP }));
+        break;
+      case "ArrowLeft":
+        e.preventDefault();
+        setPan((prev) => ({ ...prev, x: prev.x + KEY_PAN_STEP }));
+        break;
+      case "ArrowRight":
+        e.preventDefault();
+        setPan((prev) => ({ ...prev, x: prev.x - KEY_PAN_STEP }));
+        break;
+      case "+":
+      case "=":
+        e.preventDefault();
+        zoomBy(ZOOM_STEP);
+        break;
+      case "-":
+      case "_":
+        e.preventDefault();
+        zoomBy(1 / ZOOM_STEP);
+        break;
+      case "0":
+        e.preventDefault();
+        centerView();
+        break;
+      default:
+        break;
+    }
+  }
+
   function handleWheel(e: React.WheelEvent) {
     e.preventDefault();
     const viewport = viewportRef.current;
@@ -469,10 +524,12 @@ export default function TableMap() {
     mutationFn: ({
       orderId,
       status,
+      expectedUpdatedAt,
     }: {
       orderId: number;
       status: Order["status"];
-    }) => ordersApi.updateStatus(orderId, status),
+      expectedUpdatedAt?: string;
+    }) => ordersApi.updateStatus(orderId, status, expectedUpdatedAt),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["tables", id] });
       void queryClient.invalidateQueries({ queryKey: ["orders", id] });
@@ -481,8 +538,14 @@ export default function TableMap() {
       });
       setCancelOrderConfirm(null);
     },
-    onError: (e: unknown) =>
-      alert(getErrorMessage(e, "Error al actualizar el pedido")),
+    onError: (e: unknown) => {
+      if (isConflictError(e)) {
+        void queryClient.invalidateQueries({
+          queryKey: ["table-session", selectedLive?.tableSessionId],
+        });
+      }
+      alert(getErrorMessage(e, "Error al actualizar el pedido"));
+    },
   });
 
   // Guarda de golpe todo el borrador: borra las mesas quitadas, crea las
@@ -536,6 +599,7 @@ export default function TableMap() {
           posCol: t.posCol,
           width: t.width,
           height: t.height,
+          expectedUpdatedAt: orig.updatedAt,
         });
       }
     },
@@ -656,6 +720,12 @@ export default function TableMap() {
         posCol: newTablePosition.col,
         width,
         height,
+        // Es un borrador local que todavía no existe en el servidor (id
+        // negativo, ver nextTempId): estas fechas son solo un relleno de
+        // tipo, se descartan al guardar (tablesApi.create no las envía) y
+        // el backend les asigna las suyas propias.
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         status: "LIBRE",
         tableSessionId: null,
         waiterName: "",
@@ -862,7 +932,7 @@ export default function TableMap() {
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-2 md:p-3">
           <div
             ref={viewportRef}
-            className={`relative w-full ${viewportHeightClass} overflow-hidden rounded-xl bg-zinc-50 dark:bg-zinc-950/40 cursor-grab active:cursor-grabbing ${
+            className={`relative w-full ${viewportHeightClass} overflow-hidden rounded-xl bg-zinc-50 dark:bg-zinc-950/40 cursor-grab active:cursor-grabbing focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 ${
               saveMutation.isPending ? "opacity-60 pointer-events-none" : ""
             }`}
             style={{ touchAction: "none" }}
@@ -872,6 +942,14 @@ export default function TableMap() {
             onPointerCancel={handleViewportPointerUp}
             onPointerLeave={handleViewportPointerUp}
             onWheel={handleWheel}
+            // Operable por teclado: flechas para moverse, +/- para el zoom,
+            // 0 para recentrar. El arrastre con el puntero ya cubría el
+            // resto, pero antes no había forma de mover ni hacer zoom sin
+            // ratón/dedo.
+            tabIndex={0}
+            role="group"
+            aria-label="Mapa de mesas. Usa las flechas para desplazarte, + y - para el zoom, 0 para centrar. Tabula para pasar de una mesa a otra."
+            onKeyDown={handleViewportKeyDown}
           >
             <div
               className="absolute top-0 left-0"
@@ -901,9 +979,28 @@ export default function TableMap() {
                         onClick={() => handleEmptyCellClick(r, c)}
                         onDragOver={(e) => editMode && e.preventDefault()}
                         onDrop={() => editMode && handleDrop(r, c)}
+                        // Solo interactúa de verdad en modo edición (añadir
+                        // mesa), así que solo entonces entra en el orden de
+                        // tabulación.
+                        role={editMode ? "button" : undefined}
+                        tabIndex={editMode ? 0 : -1}
+                        aria-label={
+                          editMode
+                            ? `Añadir mesa en la fila ${r + 1}, columna ${c + 1}`
+                            : undefined
+                        }
+                        onKeyDown={(e) => {
+                          if (
+                            editMode &&
+                            (e.key === "Enter" || e.key === " ")
+                          ) {
+                            e.preventDefault();
+                            handleEmptyCellClick(r, c);
+                          }
+                        }}
                         className={`rounded-xl border border-dashed transition-colors ${
                           editMode
-                            ? "border-zinc-300 dark:border-zinc-700 hover:border-teal-400 hover:bg-teal-50/50 dark:hover:bg-teal-500/5 cursor-pointer"
+                            ? "border-zinc-300 dark:border-zinc-700 hover:border-teal-400 hover:bg-teal-50/50 dark:hover:bg-teal-500/5 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
                             : "border-zinc-100 dark:border-zinc-800/60"
                         }`}
                       />
@@ -925,11 +1022,22 @@ export default function TableMap() {
                     onDragEnd={() => setDraggingId(null)}
                     onDragOver={(e) => editMode && e.preventDefault()}
                     onClick={() => handleTableClick(table)}
+                    // Operable por teclado (antes solo con clic/toque):
+                    // Tab llega a cada mesa y Enter/Espacio la abren, igual
+                    // que un clic.
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        handleTableClick(table);
+                      }
+                    }}
                     style={{
                       gridRow: `${table.posRow + 1} / span ${table.height}`,
                       gridColumn: `${table.posCol + 1} / span ${table.width}`,
                     }}
-                    className={`relative flex flex-col items-center justify-center gap-1 border-2 p-2 transition-all cursor-pointer select-none ${
+                    className={`relative flex flex-col items-center justify-center gap-1 border-2 p-2 transition-all cursor-pointer select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-1 ${
                       table.shape === "ROUND" ? "rounded-full" : "rounded-xl"
                     } ${TABLE_STATUS_CELL[table.status]} ${
                       draggingId === table.id ? "opacity-40" : ""
@@ -939,6 +1047,7 @@ export default function TableMap() {
                         : "hover:brightness-95 dark:hover:brightness-125"
                     }`}
                     title={`Mesa ${table.number}${table.name ? ` · ${table.name}` : ""}`}
+                    aria-label={`Mesa ${table.number}${table.name ? ` · ${table.name}` : ""} · ${table.seats} comensales · ${TABLE_STATUS_LABEL[table.status]}`}
                   >
                     <span className="text-lg font-bold leading-none">
                       {table.number}
@@ -965,6 +1074,7 @@ export default function TableMap() {
                 onClick={() => zoomBy(ZOOM_STEP)}
                 className="w-9 h-9 flex items-center justify-center bg-white/90 dark:bg-zinc-800/90 backdrop-blur border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-sm text-zinc-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-700 transition-colors"
                 title="Acercar"
+                aria-label="Acercar"
               >
                 <ZoomIn className="w-4 h-4" strokeWidth={2} />
               </button>
@@ -973,6 +1083,7 @@ export default function TableMap() {
                 onClick={() => zoomBy(1 / ZOOM_STEP)}
                 className="w-9 h-9 flex items-center justify-center bg-white/90 dark:bg-zinc-800/90 backdrop-blur border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-sm text-zinc-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-700 transition-colors"
                 title="Alejar"
+                aria-label="Alejar"
               >
                 <ZoomOut className="w-4 h-4" strokeWidth={2} />
               </button>
@@ -981,6 +1092,7 @@ export default function TableMap() {
                 onClick={() => centerView(1)}
                 className="w-9 h-9 flex items-center justify-center bg-white/90 dark:bg-zinc-800/90 backdrop-blur border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-sm text-zinc-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-700 transition-colors"
                 title="Centrar mapa"
+                aria-label="Centrar mapa"
               >
                 <Locate className="w-4 h-4" strokeWidth={2} />
               </button>
@@ -1104,6 +1216,7 @@ export default function TableMap() {
                                   orderStatusMutation.mutate({
                                     orderId: order.id,
                                     status: nextAction.next,
+                                    expectedUpdatedAt: order.updatedAt,
                                   });
                                 }
                               }}
@@ -1116,14 +1229,22 @@ export default function TableMap() {
                                   )
                                 }
                                 title="Editar pedido"
+                                aria-label="Editar pedido"
                                 className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
                               >
                                 <Pencil className="w-4 h-4" strokeWidth={1.8} />
                               </button>
                             )}
                             <button
-                              onClick={() => void printOrderTicket(order)}
+                              onClick={() =>
+                                void printOrderTicket(
+                                  order,
+                                  restaurantName,
+                                  access?.address,
+                                )
+                              }
                               title="Imprimir ticket"
+                              aria-label="Imprimir ticket"
                               className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
                             >
                               <Printer className="w-4 h-4" strokeWidth={1.8} />
@@ -1133,6 +1254,7 @@ export default function TableMap() {
                                 disabled={busy}
                                 onClick={() => setCancelOrderConfirm(order)}
                                 title="Cancelar pedido"
+                                aria-label="Cancelar pedido"
                                 className="p-2 text-zinc-500 hover:text-amber-700 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-400/10 rounded-lg transition-colors disabled:opacity-50"
                               >
                                 <XCircle
@@ -1397,6 +1519,7 @@ export default function TableMap() {
             orderStatusMutation.mutate({
               orderId: cancelOrderConfirm.id,
               status: "CANCELLED",
+              expectedUpdatedAt: cancelOrderConfirm.updatedAt,
             })
           }
           onCancel={() => setCancelOrderConfirm(null)}
