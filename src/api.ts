@@ -197,6 +197,8 @@ export type OrderItem = {
   dishName: string;
   quantity: number;
   unitPrice: number;
+  // null = todavía no la ha preparado cocina (ver "Añadir a la comanda").
+  preparedAt: string | null;
 };
 
 export type Order = {
@@ -230,6 +232,14 @@ export type OrderCreate = {
   tableNumber: number;
   notes?: string;
   items: OrderItemInput[];
+};
+
+// Líneas a sumar a un pedido ya existente (no reemplaza las que ya tenía) —
+// usado por "Añadir a la comanda" para no trocear una mesa en varios tickets.
+export type OrderAddItems = {
+  items: OrderItemInput[];
+  notes?: string;
+  expectedUpdatedAt?: string;
 };
 
 type OrderUpdate = Partial<
@@ -538,6 +548,14 @@ export const ordersApi = {
     request<Order>(`/api/orders/${orderId}`, {
       method: "PUT",
       body: JSON.stringify({ status, expectedUpdatedAt }),
+    }),
+
+  // Suma platos nuevos a un pedido ya existente (mismo ticket) en vez de
+  // reemplazar sus líneas — ver "add-items" en el backend.
+  addItems: (orderId: number, data: OrderAddItems) =>
+    request<Order>(`/api/orders/${orderId}/add-items`, {
+      method: "POST",
+      body: JSON.stringify(data),
     }),
 
   remove: (orderId: number) =>

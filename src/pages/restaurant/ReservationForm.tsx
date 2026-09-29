@@ -330,7 +330,14 @@ export default function ReservationForm() {
                 Eliminar
               </button>
             )}
-            <div className="flex flex-col sm:flex-row gap-2.5 sm:ml-auto">
+            <div className="flex flex-col-reverse sm:flex-row gap-2.5 sm:ml-auto">
+              <button
+                type="button"
+                onClick={goBack}
+                className="px-4 py-3 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 transition-colors"
+              >
+                Cancelar
+              </button>
               <button
                 type="button"
                 onClick={submit}
@@ -343,13 +350,6 @@ export default function ReservationForm() {
                   : isEdit
                     ? "Guardar"
                     : "Crear reserva"}
-              </button>
-              <button
-                type="button"
-                onClick={goBack}
-                className="px-4 py-3 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 transition-colors"
-              >
-                Cancelar
               </button>
             </div>
           </div>

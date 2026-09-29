@@ -297,20 +297,20 @@ function ReservationCard({
 
         <div className="ml-auto flex items-center gap-1">
           <button
-            onClick={onEdit}
-            title="Editar reserva"
-            aria-label="Editar reserva"
-            className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-          >
-            <Icon name="pencil" className="w-4 h-4" strokeWidth={1.8} />
-          </button>
-          <button
             onClick={onDelete}
             title="Eliminar"
             aria-label="Eliminar"
             className="p-2 text-zinc-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded-lg transition-colors"
           >
             <Icon name="trash" className="w-4 h-4" strokeWidth={1.8} />
+          </button>
+          <button
+            onClick={onEdit}
+            title="Editar reserva"
+            aria-label="Editar reserva"
+            className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+          >
+            <Icon name="pencil" className="w-4 h-4" strokeWidth={1.8} />
           </button>
         </div>
       </div>

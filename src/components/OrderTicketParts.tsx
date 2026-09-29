@@ -1,15 +1,11 @@
-// Tarjeta de pedido compartida por OrdersManager y KitchenDisplay (mesa,
-// platos, notas y botón de avance): era código calcado en ambos archivos.
+// Piezas de tarjeta de pedido compartidas por OrdersManager y KitchenDisplay.
 import type { Order, OrderItem } from "../api";
 import { Icon } from "./icons";
 import ConfirmDialog from "./ConfirmDialog";
 import type { NextAction } from "../utils/orderStatus";
 
-// ─── Cabecera: nº de mesa + metadatos + badge ──────────────────────────────
-// El badge de la derecha es distinto según la pantalla (estado del pedido en
-// OrdersManager, tiempo transcurrido en KitchenDisplay), así que se recibe
-// ya resuelto en vez de decidirlo aquí.
-
+/** Cabecera: nº de mesa + metadatos a la izquierda, badge a la derecha
+ *  (estado en OrdersManager, tiempo transcurrido en KitchenDisplay). */
 export function OrderCardHeader({
   order,
   meta,
@@ -17,9 +13,7 @@ export function OrderCardHeader({
   badgeClassName,
 }: {
   order: Order;
-  /** Línea bajo el nº de mesa, p. ej. "#12 · Ana" o "#12 · Ana · 13:04". */
   meta: React.ReactNode;
-  /** Contenido del badge de la derecha. */
   badge: React.ReactNode;
   badgeClassName: string;
 }) {
@@ -40,10 +34,6 @@ export function OrderCardHeader({
   );
 }
 
-// ─── Lista de platos: badge de cantidad + nombre ───────────────────────────
-// `min-w-0 flex-1 break-words` es lo que evita que un nombre de plato largo
-// se salga de la tarjeta — antes había que recordar tocarlo en dos sitios.
-
 export function OrderItemsList({ items }: { items: OrderItem[] }) {
   return (
     <div className="space-y-1.5">
@@ -61,8 +51,6 @@ export function OrderItemsList({ items }: { items: OrderItem[] }) {
   );
 }
 
-// ─── Notas / alergias ───────────────────────────────────────────────────────
-
 export function OrderNotesBox({ notes }: { notes: string }) {
   return (
     <div className="flex items-start gap-2 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25 rounded-lg px-3 py-2">
@@ -78,16 +66,19 @@ export function OrderNotesBox({ notes }: { notes: string }) {
   );
 }
 
-// ─── Botón de avance: "Listo" / "Entregado" según el estado actual ─────────
-
+/** Botón de avance de estado ("Listo" / "Entregado"). `fullWidth` lo hace
+ *  ocupar el resto del ancho junto al total, para la fila superior de la
+ *  tarjeta; sin él usa el tamaño compacto de KitchenDisplay. */
 export function OrderAdvanceButton({
   action,
   busy,
   onClick,
+  fullWidth = false,
 }: {
   action: NextAction | undefined;
   busy: boolean;
   onClick: () => void;
+  fullWidth?: boolean;
 }) {
   if (!action) return null;
   return (
@@ -95,17 +86,16 @@ export function OrderAdvanceButton({
       type="button"
       disabled={busy}
       onClick={onClick}
-      className={`px-3 py-2 text-xs font-bold rounded-lg transition-colors disabled:opacity-50 ${action.className}`}
+      className={`font-bold rounded-lg transition-colors disabled:opacity-50 ${
+        fullWidth ? "flex-1 py-2.5 text-sm text-center" : "px-3 py-2 text-xs"
+      } ${action.className}`}
     >
       {busy ? "…" : action.label}
     </button>
   );
 }
 
-// ─── Confirmación de "cancelar pedido" ─────────────────────────────────────
-// Mismo diálogo tanto si se cancela desde la gestión de pedidos como desde
-// cocina: mismo texto, mismo tono (por defecto "danger" en ConfirmDialog).
-
+/** Confirmación de cancelar pedido, igual desde gestión de pedidos o cocina. */
 export function CancelOrderConfirmDialog({
   order,
   loading,

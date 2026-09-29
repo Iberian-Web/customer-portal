@@ -521,9 +521,18 @@ export default function MenuManager() {
                     </span>
                   )}
 
-                  {/* Editar / eliminar — visibles siempre en tablet (no dependen de hover) */}
+                  {/* Eliminar / renombrar — visibles siempre en tablet (no dependen de hover) */}
                   {editingSectionId !== section.id && (
                     <div className="flex items-center gap-0.5 ml-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setDeleteSectionConfirm(section)}
+                        title="Eliminar"
+                        aria-label="Eliminar"
+                        className="p-1.5 text-zinc-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded-lg transition-colors"
+                      >
+                        <Icon name="close" className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         type="button"
                         onClick={() => {
@@ -535,15 +544,6 @@ export default function MenuManager() {
                         className="p-1.5 text-zinc-500 hover:text-teal-700 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-400/10 rounded-lg transition-colors"
                       >
                         <Icon name="pencil" className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDeleteSectionConfirm(section)}
-                        title="Eliminar"
-                        aria-label="Eliminar"
-                        className="p-1.5 text-zinc-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded-lg transition-colors"
-                      >
-                        <Icon name="close" className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   )}
@@ -600,6 +600,14 @@ export default function MenuManager() {
                   {editingMenuId !== menu.id && (
                     <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                       <button
+                        onClick={() => setDeleteMenuConfirm(menu)}
+                        className="p-1.5 text-zinc-600 hover:text-red-700 dark:hover:text-red-400 rounded-lg transition-colors"
+                        title="Eliminar"
+                        aria-label="Eliminar"
+                      >
+                        <Icon name="trash" className="w-3.5 h-3.5" />
+                      </button>
+                      <button
                         onClick={() => {
                           setEditingMenuId(menu.id);
                           setEditingMenuName(menu.name);
@@ -609,14 +617,6 @@ export default function MenuManager() {
                         aria-label="Renombrar"
                       >
                         <Icon name="pencil" className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => setDeleteMenuConfirm(menu)}
-                        className="p-1.5 text-zinc-600 hover:text-red-700 dark:hover:text-red-400 rounded-lg transition-colors"
-                        title="Eliminar"
-                        aria-label="Eliminar"
-                      >
-                        <Icon name="trash" className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   )}
@@ -744,7 +744,15 @@ export default function MenuManager() {
                             </div>
                           )}
 
-                          <div className="flex items-center justify-end gap-1 border-t border-zinc-200 dark:border-zinc-800 pt-2.5 mt-1">
+                          <div className="flex items-center justify-between gap-1 border-t border-zinc-200 dark:border-zinc-800 pt-2.5 mt-1">
+                            <button
+                              onClick={() => setDeleteDishConfirm(dish)}
+                              className="p-2 text-zinc-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded-lg transition-colors"
+                              title="Eliminar"
+                              aria-label="Eliminar"
+                            >
+                              <Icon name="trash" className="w-4 h-4" />
+                            </button>
                             <button
                               onClick={() =>
                                 navigate(
@@ -756,14 +764,6 @@ export default function MenuManager() {
                               aria-label="Editar"
                             >
                               <Icon name="pencil" className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => setDeleteDishConfirm(dish)}
-                              className="p-2 text-zinc-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded-lg transition-colors"
-                              title="Eliminar"
-                              aria-label="Eliminar"
-                            >
-                              <Icon name="trash" className="w-4 h-4" />
                             </button>
                           </div>
                         </div>

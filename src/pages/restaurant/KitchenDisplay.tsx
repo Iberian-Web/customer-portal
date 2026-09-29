@@ -30,10 +30,8 @@ import {
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-// Red de seguridad por si el stream de tiempo real (SSE) se cae y el
-// navegador tarda en reconectar: antes era la única forma de refrescar
-// (cada 5s); ahora los avisos en tiempo real hacen ese trabajo al momento y
-// esto solo cubre el hueco improbable de una desconexión.
+// Red de seguridad por si el stream SSE se cae: cubre el hueco improbable
+// de una desconexión, el resto lo hacen los avisos en tiempo real.
 const POLL_INTERVAL_MS = 30000;
 // Recalcula el tiempo transcurrido de cada ticket cada X ms
 const CLOCK_TICK_MS = 15000;
@@ -62,12 +60,8 @@ const COLUMNS: Column[] = [
     emptyLabel: "No hay comandas en cocina",
     accent: "bg-blue-500",
     span: "md:col-span-3",
-    // Antes usaba un layout de columnas tipo mampostería (columns-*) para
-    // no dejar el mismo hueco vacío en un pedido de 1 plato que en uno de
-    // 20, pero combinado con el scroll vertical del contenedor daba
-    // problemas serios en móvil (a veces ni se podía hacer scroll). Usa
-    // exactamente el mismo mecanismo que "Listo" (grid clásico), solo que
-    // con más columnas en pantallas anchas.
+    // Grid clásico (no columns-* tipo mampostería): en móvil ese layout
+    // combinado con scroll vertical daba problemas serios.
     grid: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[1920px]:grid-cols-6 min-[2560px]:grid-cols-8",
   },
   {
@@ -130,10 +124,17 @@ function OrderTicket({
 }) {
   const minutes = elapsedMinutes(order.createdAt, now);
   const action = NEXT_ACTION[order.status];
+  // En la columna "en cocina" solo interesa lo que de verdad falta por
+  // hacer: si se añadieron platos a un pedido que ya estaba listo/entregado,
+  // los de antes ya están preparados y no hay que volver a cocinarlos. En
+  // "Listo" se enseña el ticket completo, para la foto final de qué servir.
+  const pendingItems = order.items.filter((it) => !it.preparedAt);
+  const alreadyPrepared = order.items.length - pendingItems.length;
+  const itemsToShow = order.status === "READY" ? order.items : pendingItems;
 
   return (
     <div
-      className={`break-inside-avoid mb-3 relative rounded-2xl border bg-white dark:bg-zinc-900 p-4 flex flex-col gap-2.5 ${
+      className={`mb-3 relative rounded-2xl border bg-white dark:bg-zinc-900 p-4 flex flex-col gap-2.5 ${
         isNew
           ? "border-amber-300 dark:border-amber-400/60"
           : "border-zinc-200 dark:border-zinc-800"
@@ -163,39 +164,122 @@ function OrderTicket({
 
       {/* Platos */}
       <div className="border-t border-zinc-200 dark:border-zinc-800 pt-2.5">
-        <OrderItemsList items={order.items} />
+        <OrderItemsList items={itemsToShow} />
+        {order.status !== "READY" && alreadyPrepared > 0 && (
+          <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1.5">
+            + {alreadyPrepared} plato{alreadyPrepared === 1 ? "" : "s"} ya
+            preparado{alreadyPrepared === 1 ? "" : "s"} de esta mesa
+          </p>
+        )}
       </div>
 
       {/* Notas / alergias */}
       {order.notes && <OrderNotesBox notes={order.notes} />}
 
-      {/* Acciones: el botón principal ya no ocupa toda la fila ni tiene
-          un tamaño enorme — el mismo tamaño compacto que en OrdersManager. */}
+      {/* Cancelar (negativo) a la izquierda, avanzar (positivo) a la derecha. */}
       <div className="flex items-center gap-1 pt-1">
-        <OrderAdvanceButton action={action} busy={busy} onClick={onAdvance} />
         <button
           type="button"
           disabled={busy}
           onClick={onCancel}
           title="Cancelar pedido"
           aria-label="Cancelar pedido"
-          className="ml-auto shrink-0 p-2 rounded-lg text-zinc-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors disabled:opacity-50"
+          className="shrink-0 p-2 rounded-lg text-zinc-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors disabled:opacity-50"
         >
           <Icon name="close" className="w-4 h-4" strokeWidth={2} />
         </button>
+        <div className="ml-auto">
+          <OrderAdvanceButton action={action} busy={busy} onClick={onAdvance} />
+        </div>
       </div>
     </div>
   );
 }
 
-/**
- * Pequeño cross-fade para cuando el contenido de la columna "Listo" cambia
- * de golpe entre la vista minimizada (barra con solo los números de mesa) y
- * la completa (tickets): en vez de que aparezca/desaparezca de un frame a
- * otro, entra con un fundido de opacidad de 200ms — combinado con la
- * animación de ancho del contenedor, da la sensación de un solo movimiento
- * suave en lugar de dos saltos independientes.
- */
+/** Barra superior de una columna: color de acento, título y contador,
+ *  con hueco para un control extra (el botón de minimizar de "Listo"). */
+function ColumnHeader({
+  column,
+  count,
+  right,
+}: {
+  column: Column;
+  count: number;
+  right?: ReactNode;
+}) {
+  return (
+    <div className="shrink-0">
+      <div className={`h-1 ${column.accent}`} />
+      <div className="flex items-center justify-between px-4 py-4">
+        <h2 className="text-base font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-wide">
+          {column.title}
+        </h2>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-bold text-zinc-500 bg-zinc-100 dark:bg-zinc-800 rounded-full px-2.5 py-0.5 tabular-nums">
+            {count}
+          </span>
+          {right}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Cuerpo de una columna: esqueleto de carga, mensaje vacío o la rejilla
+ *  de tickets — mismo patrón para "En cocina" y "Listo" (expandida). */
+function OrderGrid({
+  column,
+  orders,
+  loading,
+  now,
+  newIds,
+  busyId,
+  onAdvance,
+  onCancel,
+}: {
+  column: Column;
+  orders: Order[];
+  loading: boolean;
+  now: number;
+  newIds: Set<number>;
+  busyId: number | null;
+  onAdvance: (order: Order) => void;
+  onCancel: (order: Order) => void;
+}) {
+  return (
+    <div
+      className={`flex-1 min-w-0 overflow-y-auto overflow-x-hidden px-4 pb-4 grid ${column.grid} items-start gap-3 auto-rows-min`}
+    >
+      {loading ? (
+        [1, 2].map((i) => (
+          <div
+            key={i}
+            className="mb-3 h-40 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl animate-pulse"
+          />
+        ))
+      ) : orders.length === 0 ? (
+        <p className="col-span-full text-sm text-zinc-600 text-center py-10">
+          {column.emptyLabel}
+        </p>
+      ) : (
+        orders.map((order) => (
+          <OrderTicket
+            key={order.id}
+            order={order}
+            now={now}
+            isNew={newIds.has(order.id)}
+            busy={busyId === order.id}
+            onAdvance={() => onAdvance(order)}
+            onCancel={() => onCancel(order)}
+          />
+        ))
+      )}
+    </div>
+  );
+}
+
+/** Cross-fade (200ms) al alternar la columna "Listo" entre minimizada
+ *  y completa, para que no sea un salto brusco de contenido. */
 function FadeSwap({
   id,
   className = "",
@@ -206,10 +290,8 @@ function FadeSwap({
   children: ReactNode;
 }) {
   const [visible, setVisible] = useState(false);
-  // Ajuste de estado durante el render (en vez de un `setState` síncrono al
-  // principio de un efecto) cuando cambia `id`: es el patrón que React
-  // recomienda para "resetear" el estado ante un cambio de prop sin
-  // provocar un render en cascada desde dentro de un efecto.
+  // Ajuste de estado durante el render al cambiar `id` (patrón recomendado
+  // por React para "resetear" estado sin un render en cascada extra).
   const [trackedId, setTrackedId] = useState(id);
   if (id !== trackedId) {
     setTrackedId(id);
@@ -385,6 +467,11 @@ export default function KitchenDisplay() {
     );
   }
 
+  const kitchen = COLUMNS[0];
+  const kitchenOrders = byColumn[kitchen.key];
+  const ready = COLUMNS[1];
+  const readyOrders = byColumn[ready.key];
+
   return (
     <div className="h-screen flex flex-col bg-zinc-50 dark:bg-zinc-900">
       {/* Cabecera */}
@@ -421,61 +508,24 @@ export default function KitchenDisplay() {
           { "--ready-w": readyCollapsed ? "4rem" : "18rem" } as CSSProperties
         }
       >
-        {(() => {
-          const kitchen = COLUMNS[0];
-          const kitchenOrders = byColumn[kitchen.key];
-          return (
-            <div className="flex flex-col min-h-0 min-w-0">
-              <div className="shrink-0">
-                <div className={`h-1 ${kitchen.accent}`} />
-                <div className="flex items-center justify-between px-4 py-4">
-                  <h2 className="text-base font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-wide">
-                    {kitchen.title}
-                  </h2>
-                  <span className="text-sm font-bold text-zinc-500 bg-zinc-100 dark:bg-zinc-800 rounded-full px-2.5 py-0.5 tabular-nums">
-                    {kitchenOrders.length}
-                  </span>
-                </div>
-              </div>
-              <div
-                className={`flex-1 min-w-0 overflow-y-auto overflow-x-hidden px-4 pb-4 grid ${kitchen.grid} items-start gap-3 auto-rows-min`}
-              >
-                {loading ? (
-                  [1, 2].map((i) => (
-                    <div
-                      key={i}
-                      className="break-inside-avoid mb-3 h-40 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl animate-pulse"
-                    />
-                  ))
-                ) : kitchenOrders.length === 0 ? (
-                  <p className="text-sm text-zinc-600 text-center py-10">
-                    {kitchen.emptyLabel}
-                  </p>
-                ) : (
-                  kitchenOrders.map((order) => (
-                    <OrderTicket
-                      key={order.id}
-                      order={order}
-                      now={now}
-                      isNew={newIds.has(order.id)}
-                      busy={busyId === order.id}
-                      onAdvance={() => void advanceOrder(order)}
-                      onCancel={() => setCancelConfirm(order)}
-                    />
-                  ))
-                )}
-              </div>
-            </div>
-          );
-        })()}
+        <div className="flex flex-col min-h-0 min-w-0">
+          <ColumnHeader column={kitchen} count={kitchenOrders.length} />
+          <OrderGrid
+            column={kitchen}
+            orders={kitchenOrders}
+            loading={loading}
+            now={now}
+            newIds={newIds}
+            busyId={busyId}
+            onAdvance={(order) => void advanceOrder(order)}
+            onCancel={(order) => setCancelConfirm(order)}
+          />
+        </div>
 
         {/* Columna "Listo": minimizable a una barra lateral con solo el
             número de mesa de cada pedido, para saber de un vistazo qué
             mesas están listas sin ocupar el espacio de una columna entera. */}
         {(() => {
-          const ready = COLUMNS[1];
-          const readyOrders = byColumn[ready.key];
-
           if (readyCollapsed) {
             return (
               <FadeSwap
@@ -525,60 +575,35 @@ export default function KitchenDisplay() {
               id="ready-expanded"
               className="flex flex-col min-h-0 min-w-0"
             >
-              <div className="shrink-0">
-                <div className={`h-1 ${ready.accent}`} />
-                <div className="flex items-center justify-between px-4 py-4">
-                  <h2 className="text-base font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-wide">
-                    {ready.title}
-                  </h2>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-zinc-500 bg-zinc-100 dark:bg-zinc-800 rounded-full px-2.5 py-0.5 tabular-nums">
-                      {readyOrders.length}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setReadyCollapsed(true)}
-                      title="Minimizar a barra lateral"
-                      aria-label="Minimizar a barra lateral"
-                      className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                    >
-                      <Icon
-                        name="chevronRight"
-                        className="w-4 h-4"
-                        strokeWidth={2}
-                      />
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div
-                className={`flex-1 min-w-0 overflow-y-auto overflow-x-hidden px-4 pb-4 grid ${ready.grid} items-start gap-3 auto-rows-min`}
-              >
-                {loading ? (
-                  [1, 2].map((i) => (
-                    <div
-                      key={i}
-                      className="h-40 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl animate-pulse"
+              <ColumnHeader
+                column={ready}
+                count={readyOrders.length}
+                right={
+                  <button
+                    type="button"
+                    onClick={() => setReadyCollapsed(true)}
+                    title="Minimizar a barra lateral"
+                    aria-label="Minimizar a barra lateral"
+                    className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                  >
+                    <Icon
+                      name="chevronRight"
+                      className="w-4 h-4"
+                      strokeWidth={2}
                     />
-                  ))
-                ) : readyOrders.length === 0 ? (
-                  <p className="col-span-full text-sm text-zinc-600 text-center py-10">
-                    {ready.emptyLabel}
-                  </p>
-                ) : (
-                  readyOrders.map((order) => (
-                    <OrderTicket
-                      key={order.id}
-                      order={order}
-                      now={now}
-                      isNew={newIds.has(order.id)}
-                      busy={busyId === order.id}
-                      onAdvance={() => void advanceOrder(order)}
-                      onCancel={() => setCancelConfirm(order)}
-                    />
-                  ))
-                )}
-              </div>
+                  </button>
+                }
+              />
+              <OrderGrid
+                column={ready}
+                orders={readyOrders}
+                loading={loading}
+                now={now}
+                newIds={newIds}
+                busyId={busyId}
+                onAdvance={(order) => void advanceOrder(order)}
+                onCancel={(order) => setCancelConfirm(order)}
+              />
             </FadeSwap>
           );
         })()}

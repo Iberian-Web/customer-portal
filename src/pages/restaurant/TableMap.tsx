@@ -1,11 +1,8 @@
 // customer-portal/src/pages/restaurant/TableMap.tsx
-/* eslint-disable react-hooks/refs -- Gestos de pan/pinch-zoom: los refs
-   (posición del puntero, si se está arrastrando, etc.) solo se leen o
-   mutan dentro de manejadores de eventos (onPointerDown/Move/Up, onClick)
-   o efectos, nunca de forma síncrona durante el render — el uso correcto
-   que la propia documentación de React recomienda para este tipo de
-   estado mutable que no debe disparar un re-render. Esta regla, todavía
-   experimental, no consigue seguir esas closures y da un falso positivo. */
+/* eslint-disable react-hooks/refs -- Refs de pan/pinch-zoom: solo se leen o
+   mutan en manejadores de eventos/efectos, nunca durante el render (el uso
+   correcto para este tipo de estado mutable). Regla aún experimental que
+   no sigue esas closures y da un falso positivo. */
 import {
   useCallback,
   useEffect,
@@ -68,11 +65,8 @@ import { printOrderTicket } from "../../utils/printTicket";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-// Red de seguridad si el stream de tiempo real (SSE, ver useInstanceEvents)
-// se corta: antes esto era la única forma de enterarse de que otro
-// camarero tomó/cerró un pedido (sondeo cada 5s); ahora basta con un
-// intervalo mucho más largo. Se pausa igualmente durante la edición para no
-// pisar el borrador local con datos del servidor.
+// Red de seguridad si el stream SSE se corta; se pausa durante la edición
+// para no pisar el borrador local con datos del servidor.
 const POLL_INTERVAL_MS = 30000;
 const MIN_ROWS = 6;
 const MIN_COLS = 8;
@@ -124,6 +118,112 @@ const SHAPE_OPTIONS: {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+/** Campos "de forma" de una mesa que el backend acepta tanto al crear como
+ *  al actualizar (todo salvo posición, que cada llamada gestiona aparte). */
+function tablePayload(t: RestaurantTable) {
+  return {
+    number: t.number,
+    name: t.name,
+    seats: t.seats,
+    shape: t.shape,
+    posRow: t.posRow,
+    posCol: t.posCol,
+    width: t.width,
+    height: t.height,
+  };
+}
+
+/** Tarjeta de un pedido en curso dentro del panel de detalle de la mesa:
+ *  mismas piezas y acciones que en Gestión de pedidos (avanzar, editar,
+ *  cancelar, imprimir), para no tener que salir del mapa para tocar algo. */
+function SessionOrderCard({
+  order,
+  busy,
+  onCancel,
+  onEdit,
+  onPrint,
+  onAdvance,
+}: {
+  order: Order;
+  busy: boolean;
+  onCancel: () => void;
+  onEdit: () => void;
+  onPrint: () => void;
+  onAdvance: () => void;
+}) {
+  const nextAction = NEXT_ACTION[order.status];
+  const isOrderClosed = ["DELIVERED", "CANCELLED"].includes(order.status);
+  const showCompleted =
+    order.status === "DELIVERED" && order.tableSessionClosedAt !== null;
+
+  return (
+    <div className="bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-800 rounded-xl p-3">
+      <OrderCardHeader
+        order={order}
+        meta={
+          <>
+            #{order.id} · {order.waiterName} ·{" "}
+            {toLocalTimeString(order.createdAt)}
+          </>
+        }
+        badge={showCompleted ? COMPLETED_LABEL : STATUS_LABEL[order.status]}
+        badgeClassName={
+          showCompleted ? COMPLETED_STYLE : STATUS_STYLES[order.status]
+        }
+      />
+      <div className="border-t border-zinc-200 dark:border-zinc-800 mt-2 pt-2">
+        <OrderItemsList items={order.items} />
+      </div>
+      {order.notes && (
+        <div className="mt-2">
+          <OrderNotesBox notes={order.notes} />
+        </div>
+      )}
+      {/* Negativo (izq.) → auxiliar (centro) → positivo (der.) */}
+      <div className="flex items-center justify-between gap-1 mt-2">
+        {!isOrderClosed ? (
+          <button
+            disabled={busy}
+            onClick={onCancel}
+            title="Cancelar pedido"
+            aria-label="Cancelar pedido"
+            className="p-2 text-zinc-500 hover:text-amber-700 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-400/10 rounded-lg transition-colors disabled:opacity-50"
+          >
+            <XCircle className="w-4 h-4" strokeWidth={1.8} />
+          </button>
+        ) : (
+          <span />
+        )}
+        <div className="flex items-center gap-1">
+          {!isOrderClosed && (
+            <button
+              onClick={onEdit}
+              title="Editar pedido"
+              aria-label="Editar pedido"
+              className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+            >
+              <Pencil className="w-4 h-4" strokeWidth={1.8} />
+            </button>
+          )}
+          <button
+            onClick={onPrint}
+            title="Imprimir ticket"
+            aria-label="Imprimir ticket"
+            className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+          >
+            <Printer className="w-4 h-4" strokeWidth={1.8} />
+          </button>
+        </div>
+        <OrderAdvanceButton
+          action={nextAction}
+          busy={busy}
+          onClick={onAdvance}
+        />
+      </div>
+    </div>
+  );
 }
 
 function pointerDistance(
@@ -275,6 +375,17 @@ export default function TableMap() {
     enabled: !!selectedLive?.tableSessionId && selectedLive.status !== "LIBRE",
   });
 
+  // Mientras se está cargando la sesión de la mesa aún no sabemos si hay un
+  // pedido activo al que sumar: se deshabilita un instante en vez de
+  // arriesgarse a crear un ticket aparte por error si se pulsa muy rápido.
+  const stillResolvingSession =
+    !!selectedLive && selectedLive.status !== "LIBRE" && sessionLoading;
+  const activeSessionOrder = session
+    ? [...session.orders]
+        .filter((o) => o.status !== "CANCELLED")
+        .sort((a, b) => b.id - a.id)[0]
+    : undefined;
+
   // ── Dimensiones de la rejilla ────────────────────────────────────────────
 
   const { rows, cols } = useMemo(() => {
@@ -326,6 +437,26 @@ export default function TableMap() {
 
   function isNumberTaken(number: number, ignoreId?: number) {
     return displayTables.some((t) => t.number === number && t.id !== ignoreId);
+  }
+
+  /** Comprueba número libre + hueco libre para crear/editar una mesa;
+   *  devuelve el mensaje de error a mostrar, o null si todo es válido. */
+  function validatePlacement(
+    number: number,
+    row: number,
+    col: number,
+    width: number,
+    height: number,
+    overlapMessage: string,
+    ignoreId?: number,
+  ): string | null {
+    if (isNumberTaken(number, ignoreId)) {
+      return `Ya hay una mesa con el número ${number}`;
+    }
+    if (!areaIsFree(row, col, width, height, ignoreId)) {
+      return overlapMessage;
+    }
+    return null;
   }
 
   // ── Centrado inicial + botón "centrar" ───────────────────────────────────
@@ -566,16 +697,7 @@ export default function TableMap() {
         await tablesApi.remove(tid);
       }
       for (const t of newTables) {
-        await tablesApi.create(id, {
-          number: t.number,
-          name: t.name,
-          seats: t.seats,
-          shape: t.shape,
-          posRow: t.posRow,
-          posCol: t.posCol,
-          width: t.width,
-          height: t.height,
-        });
+        await tablesApi.create(id, tablePayload(t));
       }
       for (const t of existingTables) {
         const orig = original.find((o) => o.id === t.id);
@@ -591,14 +713,7 @@ export default function TableMap() {
           orig.height !== t.height;
         if (!changed) continue;
         await tablesApi.update(t.id, {
-          number: t.number,
-          name: t.name,
-          seats: t.seats,
-          shape: t.shape,
-          posRow: t.posRow,
-          posCol: t.posCol,
-          width: t.width,
-          height: t.height,
+          ...tablePayload(t),
           expectedUpdatedAt: orig.updatedAt,
         });
       }
@@ -699,14 +814,16 @@ export default function TableMap() {
 
     if (editingTable === "new") {
       if (!newTablePosition) return;
-      if (isNumberTaken(number)) {
-        setFormError(`Ya hay una mesa con el número ${number}`);
-        return;
-      }
-      if (
-        !areaIsFree(newTablePosition.row, newTablePosition.col, width, height)
-      ) {
-        setFormError("Esas dimensiones no caben ahí: se solapan con otra mesa");
+      const placementError = validatePlacement(
+        number,
+        newTablePosition.row,
+        newTablePosition.col,
+        width,
+        height,
+        "Esas dimensiones no caben ahí: se solapan con otra mesa",
+      );
+      if (placementError) {
+        setFormError(placementError);
         return;
       }
       const newTable: RestaurantTable = {
@@ -735,20 +852,17 @@ export default function TableMap() {
       setDraftTables((prev) => [...(prev ?? []), newTable]);
       closeEditor();
     } else if (editingTable) {
-      if (isNumberTaken(number, editingTable.id)) {
-        setFormError(`Ya hay una mesa con el número ${number}`);
-        return;
-      }
-      if (
-        !areaIsFree(
-          editingTable.posRow,
-          editingTable.posCol,
-          width,
-          height,
-          editingTable.id,
-        )
-      ) {
-        setFormError("El nuevo tamaño no cabe aquí: se solapa con otra mesa");
+      const placementError = validatePlacement(
+        number,
+        editingTable.posRow,
+        editingTable.posCol,
+        width,
+        height,
+        "El nuevo tamaño no cabe aquí: se solapa con otra mesa",
+        editingTable.id,
+      );
+      if (placementError) {
+        setFormError(placementError);
         return;
       }
       setDraftTables((prev) =>
@@ -1119,7 +1233,7 @@ export default function TableMap() {
 
       {/* Panel de detalle (modo vista) */}
       {selectedLive && !editMode && (
-        <Modal onClose={() => setSelected(null)} maxWidth="max-w-lg">
+        <Modal onClose={() => setSelected(null)} maxWidth="max-w-sm">
           <div className="flex items-start justify-between mb-4">
             <div>
               <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
@@ -1161,112 +1275,58 @@ export default function TableMap() {
                 </div>
               ) : session ? (
                 <>
-                  {[...session.orders]
-                    .sort((a, b) => a.id - b.id)
-                    .map((order) => {
-                      const nextAction = NEXT_ACTION[order.status];
-                      const isOrderClosed = ["DELIVERED", "CANCELLED"].includes(
-                        order.status,
-                      );
-                      const showCompleted =
-                        order.status === "DELIVERED" &&
-                        order.tableSessionClosedAt !== null;
-                      const busy =
-                        orderStatusMutation.isPending &&
-                        orderStatusMutation.variables?.orderId === order.id;
-
+                  {/* Solo lo que sigue en curso (en cocina o listo): lo ya
+                      entregado o cancelado no es "el pedido actual" de la
+                      mesa, y verlo aquí mezclado es justo lo que confundía.
+                      Sigue contando para el total y para "Cerrar y cobrar"
+                      más abajo, solo que sin tarjeta propia en esta lista. */}
+                  {(() => {
+                    const currentOrders = session.orders.filter((o) =>
+                      ["IN_PROGRESS", "READY"].includes(o.status),
+                    );
+                    if (currentOrders.length === 0) {
                       return (
-                        <div
-                          key={order.id}
-                          className="bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-800 rounded-xl p-3"
-                        >
-                          <OrderCardHeader
-                            order={order}
-                            meta={
-                              <>
-                                #{order.id} · {order.waiterName} ·{" "}
-                                {toLocalTimeString(order.createdAt)}
-                              </>
-                            }
-                            badge={
-                              showCompleted
-                                ? COMPLETED_LABEL
-                                : STATUS_LABEL[order.status]
-                            }
-                            badgeClassName={
-                              showCompleted
-                                ? COMPLETED_STYLE
-                                : STATUS_STYLES[order.status]
-                            }
-                          />
-                          <div className="border-t border-zinc-200 dark:border-zinc-800 mt-2 pt-2">
-                            <OrderItemsList items={order.items} />
-                          </div>
-                          {order.notes && (
-                            <div className="mt-2">
-                              <OrderNotesBox notes={order.notes} />
-                            </div>
-                          )}
-                          <div className="flex items-center justify-end gap-1 mt-2">
-                            <OrderAdvanceButton
-                              action={nextAction}
-                              busy={busy}
-                              onClick={() => {
-                                if (nextAction) {
-                                  orderStatusMutation.mutate({
-                                    orderId: order.id,
-                                    status: nextAction.next,
-                                    expectedUpdatedAt: order.updatedAt,
-                                  });
-                                }
-                              }}
-                            />
-                            {!isOrderClosed && (
-                              <button
-                                onClick={() =>
-                                  navigate(
-                                    `/restaurant/${slug}/orders/${order.id}?from=map`,
-                                  )
-                                }
-                                title="Editar pedido"
-                                aria-label="Editar pedido"
-                                className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-                              >
-                                <Pencil className="w-4 h-4" strokeWidth={1.8} />
-                              </button>
-                            )}
-                            <button
-                              onClick={() =>
-                                void printOrderTicket(
-                                  order,
-                                  restaurantName,
-                                  access?.address,
-                                )
-                              }
-                              title="Imprimir ticket"
-                              aria-label="Imprimir ticket"
-                              className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-                            >
-                              <Printer className="w-4 h-4" strokeWidth={1.8} />
-                            </button>
-                            {!isOrderClosed && (
-                              <button
-                                disabled={busy}
-                                onClick={() => setCancelOrderConfirm(order)}
-                                title="Cancelar pedido"
-                                aria-label="Cancelar pedido"
-                                className="p-2 text-zinc-500 hover:text-amber-700 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-400/10 rounded-lg transition-colors disabled:opacity-50"
-                              >
-                                <XCircle
-                                  className="w-4 h-4"
-                                  strokeWidth={1.8}
-                                />
-                              </button>
-                            )}
-                          </div>
-                        </div>
+                        <p className="text-sm text-zinc-500 text-center py-2">
+                          Todo entregado — lista para cobrar
+                        </p>
                       );
-                    })}
+                    }
+                    return [...currentOrders]
+                      .sort((a, b) => a.id - b.id)
+                      .map((order) => (
+                        <SessionOrderCard
+                          key={order.id}
+                          order={order}
+                          busy={
+                            orderStatusMutation.isPending &&
+                            orderStatusMutation.variables?.orderId === order.id
+                          }
+                          onCancel={() => setCancelOrderConfirm(order)}
+                          onEdit={() =>
+                            navigate(
+                              `/restaurant/${slug}/orders/${order.id}?from=map`,
+                            )
+                          }
+                          onPrint={() =>
+                            void printOrderTicket(
+                              order,
+                              restaurantName,
+                              access?.address,
+                            )
+                          }
+                          onAdvance={() => {
+                            const next = NEXT_ACTION[order.status];
+                            if (next) {
+                              orderStatusMutation.mutate({
+                                orderId: order.id,
+                                status: next.next,
+                                expectedUpdatedAt: order.updatedAt,
+                              });
+                            }
+                          }}
+                        />
+                      ));
+                  })()}
                   <div className="flex justify-between items-center pt-1">
                     <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
                       Total
@@ -1280,18 +1340,47 @@ export default function TableMap() {
             </div>
           )}
 
+          {/* "Añadir a la comanda" suma platos al mismo ticket ya abierto de
+              la mesa (misma familia, más comida); "Pedido aparte" es la
+              excepción explícita para cuando alguien de la mesa quiere
+              pagar por separado. */}
           <div className="flex flex-col gap-2">
             <button
+              disabled={stillResolvingSession}
               onClick={() =>
                 navigate(
-                  `/restaurant/${slug}/orders/new?table=${selectedLive.number}&from=map`,
+                  activeSessionOrder
+                    ? `/restaurant/${slug}/orders/${activeSessionOrder.id}?from=map&mode=add`
+                    : `/restaurant/${slug}/orders/new?table=${selectedLive.number}&from=map`,
                 )
               }
-              className="flex items-center justify-center gap-2 px-4 py-3 bg-teal-600 hover:bg-teal-500 text-white text-sm font-bold rounded-xl transition-colors"
+              className="flex items-center justify-center gap-2 px-4 py-3 bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-colors"
             >
-              <UtensilsCrossed className="w-4 h-4" strokeWidth={2} />
-              {selectedLive.status === "LIBRE" ? "Nuevo pedido" : "Añadir"}
+              {stillResolvingSession ? (
+                <Spinner className="w-4 h-4" />
+              ) : (
+                <UtensilsCrossed className="w-4 h-4" strokeWidth={2} />
+              )}
+              {stillResolvingSession
+                ? "Cargando…"
+                : activeSessionOrder
+                  ? "Añadir a la comanda"
+                  : "Nuevo pedido"}
             </button>
+            {activeSessionOrder && (
+              <button
+                onClick={() =>
+                  navigate(
+                    `/restaurant/${slug}/orders/new?table=${selectedLive.number}&from=map`,
+                  )
+                }
+                title="Empieza un ticket aparte para esta mesa (p. ej. alguien que paga por separado)"
+                className="flex items-center justify-center gap-2 px-4 py-3 border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-sm font-bold rounded-xl transition-colors"
+              >
+                <UtensilsCrossed className="w-4 h-4" strokeWidth={2} />
+                Nuevo pedido
+              </button>
+            )}
             {selectedLive.status === "PARA_COBRAR" &&
               selectedLive.tableSessionId && (
                 <button

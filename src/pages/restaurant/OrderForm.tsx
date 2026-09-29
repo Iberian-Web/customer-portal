@@ -8,6 +8,7 @@ import {
   isConflictError,
   type Order,
   type OrderCreate,
+  type OrderAddItems,
   type Menu,
 } from "../../api";
 import { useRestaurantInstance } from "../../hooks/useRestaurantInstance";
@@ -30,6 +31,14 @@ import { STATUS_LABEL, STATUS_STYLES } from "../../utils/orderStatus";
 
 // Sentinel para "todas las categorías" en el filtro de la carta.
 const ALL_CATEGORIES = "__TODOS__";
+
+function categoryButtonClass(active: boolean): string {
+  return `shrink-0 lg:w-full text-left px-4 py-3.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors ${
+    active
+      ? "bg-teal-600 text-white"
+      : "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+  }`;
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -73,6 +82,10 @@ export default function OrderForm() {
   const id = instance?.id ?? 0;
   const slug = instance?.slug ?? "";
   const isEdit = !!orderId && orderId !== "new";
+  // "Añadir a la comanda": mismo pedido/ticket que ya está en cocina, solo
+  // que aquí se construye una ronda nueva de platos (el carrito empieza
+  // vacío) que se suma a lo que ya tenía, en vez de sustituir sus líneas.
+  const isAddMode = isEdit && searchParams.get("mode") === "add";
   // Si se llegó aquí desde el Mapa (nuevo pedido o editar uno existente
   // desde la modal de una mesa), al terminar hay que volver al Mapa en vez
   // de al listado de pedidos de siempre.
@@ -155,16 +168,24 @@ export default function OrderForm() {
   if (isEdit && !initialized && existingOrder) {
     setInitialized(true);
     setOrder(existingOrder);
-    setForm({
-      tableNumber: String(existingOrder.tableNumber),
-      notes: existingOrder.notes,
-      items: existingOrder.items.map((it) => ({
-        key: newItemKey(),
-        dishName: it.dishName,
-        quantity: String(it.quantity),
-        unitPrice: String(it.unitPrice),
-      })),
-    });
+    setForm(
+      isAddMode
+        ? {
+            tableNumber: String(existingOrder.tableNumber),
+            notes: "",
+            items: [],
+          }
+        : {
+            tableNumber: String(existingOrder.tableNumber),
+            notes: existingOrder.notes,
+            items: existingOrder.items.map((it) => ({
+              key: newItemKey(),
+              dishName: it.dishName,
+              quantity: String(it.quantity),
+              unitPrice: String(it.unitPrice),
+            })),
+          },
+    );
   }
 
   // ── Dish picker ───────────────────────────────────────────────────────────
@@ -278,25 +299,59 @@ export default function OrderForm() {
 
   /**
    * Guarda el pedido. Uno nuevo entra siempre directo a cocina (IN_PROGRESS).
-   * Editar uno existente solo actualiza sus datos/platos. El camarero/a
-   * nunca se envía desde aquí: lo asocia el backend por la sesión.
+   * En modo "añadir", las líneas del carrito se SUMAN a un pedido ya
+   * existente (mismo ticket) en vez de sustituir las suyas. Editar uno
+   * existente solo actualiza sus datos/platos. El camarero/a nunca se
+   * envía desde aquí: lo asocia el backend por la sesión.
    */
+  // Invalida lo que puede haber cambiado al crear/editar/borrar un pedido:
+  // el listado, el Mapa (para que la mesa refleje el cambio al volver — su
+  // SSE está desmontado mientras se rellena este formulario) y la cuenta
+  // combinada de la sesión, si se conoce.
+  const invalidateOrderAndTable = (tableSessionId?: number) => {
+    void queryClient.invalidateQueries({ queryKey: ["orders", id] });
+    void queryClient.invalidateQueries({ queryKey: ["tables", id] });
+    if (tableSessionId !== undefined) {
+      void queryClient.invalidateQueries({
+        queryKey: ["table-session", tableSessionId],
+      });
+    }
+  };
+
   const submitMutation = useMutation({
-    mutationFn: async (payload: OrderCreate) => {
-      if (isEdit) {
-        await ordersApi.update(Number(orderId), {
-          ...payload,
+    mutationFn: async (): Promise<Order> => {
+      const items = form.items.map((it) => ({
+        dishName: it.dishName,
+        quantity: Number(it.quantity) || 1,
+        unitPrice: Number(it.unitPrice) || 0,
+      }));
+      const notes = form.notes.trim() || undefined;
+
+      if (isAddMode) {
+        const payload: OrderAddItems = {
+          items,
+          notes,
           expectedUpdatedAt: existingOrder?.updatedAt,
-        });
-      } else {
-        await ordersApi.create(id, payload);
+        };
+        return ordersApi.addItems(Number(orderId), payload);
       }
+      const payload: OrderCreate = {
+        tableNumber: Number(form.tableNumber),
+        notes,
+        items,
+      };
+      return isEdit
+        ? ordersApi.update(Number(orderId), {
+            ...payload,
+            expectedUpdatedAt: existingOrder?.updatedAt,
+          })
+        : ordersApi.create(id, payload);
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["orders", id] });
+    onSuccess: (savedOrder) => {
       if (isEdit) {
         void queryClient.invalidateQueries({ queryKey: ["order", orderId] });
       }
+      invalidateOrderAndTable(savedOrder.tableSessionId);
       goBack();
     },
     onError: (submitError: unknown) => {
@@ -313,20 +368,9 @@ export default function OrderForm() {
 
   const submit = () => {
     if (!validate()) return;
-
-    const payload: OrderCreate = {
-      tableNumber: Number(form.tableNumber),
-      notes: form.notes.trim() || undefined,
-      items: form.items.map((it) => ({
-        dishName: it.dishName,
-        quantity: Number(it.quantity) || 1,
-        unitPrice: Number(it.unitPrice) || 0,
-      })),
-    };
-
-    setSavingKind(!isEdit ? "send" : "save");
+    setSavingKind(!isEdit || isAddMode ? "send" : "save");
     setError(null);
-    submitMutation.mutate(payload);
+    submitMutation.mutate();
   };
 
   // ── Delete ────────────────────────────────────────────────────────────────
@@ -334,7 +378,7 @@ export default function OrderForm() {
   const deleteMutation = useMutation({
     mutationFn: () => ordersApi.remove(order!.id),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["orders", id] });
+      invalidateOrderAndTable(order?.tableSessionId);
       goBack();
     },
     onError: (deleteError: unknown) => {
@@ -381,20 +425,24 @@ export default function OrderForm() {
         <FormPageHeader
           onBack={goBack}
           title={
-            isEdit
-              ? `Pedido #${order?.id}`
-              : prefilledTable
-                ? `Nuevo pedido — Mesa ${prefilledTable}`
-                : "Nuevo pedido"
+            isAddMode
+              ? `Añadir a la comanda — Mesa ${order?.tableNumber ?? ""}`
+              : isEdit
+                ? `Pedido #${order?.id}`
+                : prefilledTable
+                  ? `Nuevo pedido — Mesa ${prefilledTable}`
+                  : "Nuevo pedido"
           }
           subtitle={
-            access?.waiterName
-              ? `Camarero/a: ${access.waiterName}`
-              : isEdit
-                ? "Edita los datos y los platos del pedido"
-                : prefilledTable
-                  ? "Pedido nuevo e independiente para esta mesa: no afecta a la comanda anterior."
-                  : "Toca la mesa y añade platos de la carta"
+            isAddMode
+              ? "Se suma al pedido ya enviado a cocina: no se toca lo que ya pediste."
+              : access?.waiterName
+                ? `Camarero/a: ${access.waiterName}`
+                : isEdit
+                  ? "Edita los datos y los platos del pedido"
+                  : prefilledTable
+                    ? "Pedido nuevo e independiente para esta mesa: no afecta a la comanda anterior."
+                    : "Toca la mesa y añade platos de la carta"
           }
           right={
             order && (
@@ -415,7 +463,8 @@ export default function OrderForm() {
                 type="number"
                 inputMode="numeric"
                 min={1}
-                className={`${getInputClass(fieldErrors.tableNumber)} text-center text-2xl font-bold py-4`}
+                disabled={isAddMode}
+                className={`${getInputClass(fieldErrors.tableNumber)} text-center text-2xl font-bold py-4 disabled:opacity-60`}
                 placeholder="4"
                 value={form.tableNumber}
                 onChange={(e) =>
@@ -423,7 +472,14 @@ export default function OrderForm() {
                 }
               />
             </Field>
-            <Field label="Notas" hint="(alergias, peticiones especiales…)">
+            <Field
+              label="Notas"
+              hint={
+                isAddMode
+                  ? "(se añade a las notas del pedido)"
+                  : "(alergias, peticiones especiales…)"
+              }
+            >
               <input
                 type="text"
                 className={getInputClass()}
@@ -447,11 +503,9 @@ export default function OrderForm() {
                 <button
                   type="button"
                   onClick={() => setActiveCategory(ALL_CATEGORIES)}
-                  className={`shrink-0 lg:w-full text-left px-4 py-3.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors ${
-                    activeCategory === ALL_CATEGORIES
-                      ? "bg-teal-600 text-white"
-                      : "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                  }`}
+                  className={categoryButtonClass(
+                    activeCategory === ALL_CATEGORIES,
+                  )}
                 >
                   Todos
                 </button>
@@ -460,11 +514,7 @@ export default function OrderForm() {
                     key={c}
                     type="button"
                     onClick={() => setActiveCategory(c)}
-                    className={`shrink-0 lg:w-full text-left px-4 py-3.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors ${
-                      activeCategory === c
-                        ? "bg-teal-600 text-white"
-                        : "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                    }`}
+                    className={categoryButtonClass(activeCategory === c)}
                   >
                     {c}
                   </button>
@@ -596,7 +646,34 @@ export default function OrderForm() {
 
           {/* Pedido en curso: fijo al lado, siempre visible */}
           <div className="w-full lg:w-104 shrink-0 lg:sticky lg:top-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 flex flex-col gap-4 lg:max-h-[calc(100vh-3rem)]">
-            <SectionTitle>Pedido en curso</SectionTitle>
+            {isAddMode && existingOrder && existingOrder.items.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">
+                  Ya en la comanda
+                </p>
+                <div className="space-y-1 bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 py-2.5">
+                  {existingOrder.items.map((it) => (
+                    <div
+                      key={it.id}
+                      className="flex items-baseline gap-2 text-sm text-zinc-500"
+                    >
+                      <span className="shrink-0">{it.quantity}×</span>
+                      <span className="flex-1 truncate">{it.dishName}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between text-xs text-zinc-500 pt-1 border-t border-zinc-200 dark:border-zinc-800 mt-1.5">
+                    <span>Subtotal</span>
+                    <span className="tabular-nums">
+                      {money(existingOrder.total)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <SectionTitle>
+              {isAddMode ? "Añadiendo ahora" : "Pedido en curso"}
+            </SectionTitle>
 
             <div className="flex-1 overflow-y-auto -mr-1 pr-1 min-h-16">
               {form.items.length === 0 ? (
@@ -650,13 +727,15 @@ export default function OrderForm() {
             </div>
 
             <div className="border-t border-zinc-200 dark:border-zinc-800 pt-3 flex items-center justify-between text-base font-semibold">
-              <span className="text-zinc-700 dark:text-zinc-300">Total</span>
+              <span className="text-zinc-700 dark:text-zinc-300">
+                {isAddMode ? "Total de esta ronda" : "Total"}
+              </span>
               <span className="text-zinc-900 dark:text-zinc-100 tabular-nums">
                 {money(total)}
               </span>
             </div>
 
-            {isEdit && order && (
+            {isEdit && order && !isAddMode && (
               <p className="text-xs text-zinc-600">
                 El estado de cocina (pendiente, en cocina, listo, entregado o
                 cancelado) se gestiona desde el listado de pedidos.
@@ -673,19 +752,23 @@ export default function OrderForm() {
                 onClick={submit}
                 disabled={!!savingKind}
                 className={`flex items-center justify-center gap-2 px-5 py-4 disabled:opacity-50 text-white text-base font-bold rounded-xl transition-colors ${
-                  !isEdit
+                  !isEdit || isAddMode
                     ? "bg-blue-600 hover:bg-blue-500"
                     : "bg-teal-600 hover:bg-teal-500"
                 }`}
               >
                 {savingKind && <Spinner />}
                 {savingKind
-                  ? !isEdit
-                    ? "Enviando…"
-                    : "Guardando…"
-                  : !isEdit
-                    ? "Enviar a cocina"
-                    : "Guardar"}
+                  ? isAddMode
+                    ? "Añadiendo…"
+                    : !isEdit
+                      ? "Enviando…"
+                      : "Guardando…"
+                  : isAddMode
+                    ? "Añadir a cocina"
+                    : !isEdit
+                      ? "Enviar a cocina"
+                      : "Guardar"}
               </button>
               <button
                 type="button"
@@ -694,7 +777,7 @@ export default function OrderForm() {
               >
                 Cancelar
               </button>
-              {isEdit && (
+              {isEdit && !isAddMode && (
                 <button
                   type="button"
                   onClick={() => setShowDeleteConfirm(true)}

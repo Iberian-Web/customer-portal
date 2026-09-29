@@ -51,8 +51,7 @@ import {
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-// Un borde lateral de color por estado, para poder distinguir tarjetas de un
-// vistazo aunque estén muy juntas en la rejilla.
+// Borde lateral de color por estado, para distinguir tarjetas de un vistazo.
 const STATUS_ACCENT: Partial<Record<OrderStatus, string>> = {
   IN_PROGRESS: "border-l-blue-500/70",
   READY: "border-l-emerald-500/70",
@@ -60,15 +59,20 @@ const STATUS_ACCENT: Partial<Record<OrderStatus, string>> = {
   CANCELLED: "border-l-red-500/50",
 };
 
-// Todo pedido nuevo entra directamente en cocina (IN_PROGRESS): ya no existe
-// el paso intermedio "Nuevo · sin enviar" (PENDING), así que no se ofrece
-// como opción de filtro.
+// PENDING ya no existe como paso intermedio, así que no se ofrece como filtro.
 const ALL_STATUSES: OrderStatus[] = [
   "IN_PROGRESS",
   "READY",
   "DELIVERED",
   "CANCELLED",
 ];
+
+// Mismo número de columnas para el esqueleto de carga y para el layout
+// real (masonry), reutilizados tanto en activos como en completados.
+const SKELETON_GRID_CLASSES =
+  "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[1920px]:grid-cols-6 min-[2560px]:grid-cols-7 gap-3";
+const MASONRY_CLASSES =
+  "columns-1 sm:columns-2 lg:columns-3 xl:columns-4 2xl:columns-5 min-[1920px]:columns-6 min-[2560px]:columns-7 gap-3";
 
 // ─── Tarjeta de pedido ────────────────────────────────────────────────────────
 
@@ -97,24 +101,48 @@ function OrderCard({
   onPrint: () => void;
   onDelete: () => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const nextAction = NEXT_ACTION[order.status];
-  // Un pedido entregado o cancelado es una comanda cerrada: no se toca, se
-  // crea una nueva para la misma mesa (ver onReorder).
+  // Entregado/cancelado = comanda cerrada: no se toca, se pide de nuevo (onReorder).
   const isClosed = ["DELIVERED", "CANCELLED"].includes(order.status);
   const canCancel = !isClosed;
-  // A diferencia de "entregado" (la mesa puede seguir sumando pedidos), una
-  // sesión ya cerrada (cobrada) está completamente finalizada: ya no admite
-  // ni nuevos pedidos en la misma cuenta ni volver a cerrarla.
+  // Sesión cerrada (cobrada) = ya no admite ni nuevos pedidos ni volver a cerrarla.
   const sessionClosed = order.tableSessionClosedAt !== null;
   const showCompleted = order.status === "DELIVERED" && sessionClosed;
+  const actionBtn =
+    "p-2.5 rounded-lg transition-colors disabled:opacity-40 disabled:pointer-events-none";
+  // Mientras queda algo por avanzar (Listo/Entregado) esa es la acción
+  // principal; una vez la comanda está cerrada, el hueco lo ocupa "Cerrar y
+  // cobrar" en su lugar — así no compite por espacio con un icono más.
+  const canClose = isClosed && !sessionClosed;
+  const primaryAction = nextAction ? (
+    <OrderAdvanceButton
+      action={nextAction}
+      busy={updating}
+      onClick={onAdvance}
+      fullWidth
+    />
+  ) : canClose ? (
+    <button
+      type="button"
+      disabled={closingTable || sessionStillActive}
+      onClick={onCloseTable}
+      title={
+        sessionStillActive
+          ? "Todavía hay otro pedido en curso en esta mesa"
+          : "Cerrar y cobrar la cuenta combinada"
+      }
+      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-bold rounded-lg transition-colors bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white"
+    >
+      <Receipt className="w-4 h-4" strokeWidth={2} />
+      Cerrar y cobrar
+    </button>
+  ) : null;
 
   return (
     <div
       className={`break-inside-avoid mb-3 flex flex-col bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 border-l-4 ${STATUS_ACCENT[order.status] ?? "border-l-zinc-300 dark:border-l-zinc-700"} rounded-2xl p-4 gap-2.5`}
     >
-      {/* Cabecera: igual estructura que en el ticket de cocina (mesa
-          grande + nº de pedido/camarero a la izquierda, una única
-          badge a la derecha). */}
       <OrderCardHeader
         order={order}
         meta={
@@ -129,93 +157,94 @@ function OrderCard({
         }
       />
 
-      {/* Platos: mismo estilo que en cocina (badge de cantidad + plato) */}
       <div className="border-t border-zinc-200 dark:border-zinc-800 pt-2.5 flex-1">
         <OrderItemsList items={order.items} />
       </div>
 
-      {/* Notas: mismo estilo que en cocina (icono + caja roja) */}
       {order.notes && <OrderNotesBox notes={order.notes} />}
 
-      {/* Importe + acciones en una sola fila: la cantidad a la izquierda,
-          los botones a la derecha (sin fila de "Total" aparte). */}
-      <div className="flex items-center justify-between gap-2 border-t border-zinc-200 dark:border-zinc-800 pt-2.5">
-        <span className="text-base font-bold text-zinc-900 dark:text-zinc-100 tabular-nums shrink-0">
-          {money(order.total)}
-        </span>
-        <div className="flex items-center gap-1">
-          <OrderAdvanceButton
-            action={nextAction}
-            busy={updating}
-            onClick={onAdvance}
-          />
-          {isClosed ? (
-            <>
-              <button
-                onClick={onReorder}
-                title={`Nuevo pedido para la mesa ${order.tableNumber}`}
-                aria-label={`Nuevo pedido para la mesa ${order.tableNumber}`}
-                className="p-2 text-zinc-500 hover:text-teal-700 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-500/10 rounded-lg transition-colors"
-              >
-                <RotateCcw className="w-4 h-4" strokeWidth={1.8} />
-              </button>
-              {!sessionClosed && (
+      {/* Fila 1: total + acción principal (avanzar estado, o "Cerrar y
+          cobrar" una vez no queda nada más que avanzar) a todo lo ancho, más
+          un ">" que despliega el resto de acciones debajo. Ese panel, en
+          conjunto alineado a la derecha, mantiene el mismo orden interno:
+          negativo (izq.) → auxiliar (centro) → positivo (der.). */}
+      <div className="border-t border-zinc-200 dark:border-zinc-800 pt-2.5">
+        <div className="flex items-center gap-2">
+          <span className="text-base font-bold text-zinc-900 dark:text-zinc-100 tabular-nums shrink-0">
+            {money(order.total)}
+          </span>
+          {primaryAction}
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
+            aria-label={expanded ? "Ocultar más acciones" : "Más acciones"}
+            title={expanded ? "Ocultar más acciones" : "Más acciones"}
+            className={`shrink-0 p-2.5 rounded-lg text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors ${primaryAction ? "" : "ml-auto"}`}
+          >
+            <ChevronDown
+              className={`w-4.5 h-4.5 transition-transform duration-200 ${expanded ? "" : "-rotate-90"}`}
+              strokeWidth={1.8}
+            />
+          </button>
+        </div>
+
+        {/* Truco `grid-rows` para animar de 0 a la altura real sin medirla
+            a mano: transiciona la fila del grid, no un max-height fijo. */}
+        <div
+          className={`grid transition-[grid-template-rows] duration-200 ease-in-out ${expanded ? "grid-rows-[1fr] mt-2" : "grid-rows-[0fr]"}`}
+        >
+          <div className="overflow-hidden">
+            <div className="flex items-center justify-end gap-1">
+              {canCancel && (
                 <button
-                  disabled={closingTable || sessionStillActive}
-                  onClick={onCloseTable}
-                  title={
-                    sessionStillActive
-                      ? "Todavía hay otro pedido en curso en esta mesa"
-                      : "Cerrar y cobrar la cuenta combinada"
-                  }
-                  aria-label={
-                    sessionStillActive
-                      ? "Todavía hay otro pedido en curso en esta mesa"
-                      : "Cerrar y cobrar la cuenta combinada"
-                  }
-                  className="p-2 text-zinc-500 hover:text-teal-700 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-500/10 rounded-lg transition-colors disabled:opacity-30"
+                  disabled={updating}
+                  onClick={onCancel}
+                  title="Cancelar pedido"
+                  aria-label="Cancelar pedido"
+                  className={`${actionBtn} text-zinc-500 hover:text-amber-700 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-400/10`}
                 >
-                  <Receipt className="w-4 h-4" strokeWidth={1.8} />
+                  <XCircle className="w-4.5 h-4.5" strokeWidth={1.8} />
                 </button>
               )}
-            </>
-          ) : (
-            <button
-              onClick={onEdit}
-              title="Editar pedido"
-              aria-label="Editar pedido"
-              className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-            >
-              <Pencil className="w-4 h-4" strokeWidth={1.8} />
-            </button>
-          )}
-          <button
-            onClick={onPrint}
-            title="Imprimir ticket"
-            aria-label="Imprimir ticket"
-            className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-          >
-            <Printer className="w-4 h-4" strokeWidth={1.8} />
-          </button>
-          {canCancel && (
-            <button
-              disabled={updating}
-              onClick={onCancel}
-              title="Cancelar pedido"
-              aria-label="Cancelar pedido"
-              className="p-2 text-zinc-500 hover:text-amber-700 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-400/10 rounded-lg transition-colors disabled:opacity-50"
-            >
-              <XCircle className="w-4 h-4" strokeWidth={1.8} />
-            </button>
-          )}
-          <button
-            onClick={onDelete}
-            title="Eliminar"
-            aria-label="Eliminar"
-            className="p-2 text-zinc-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded-lg transition-colors"
-          >
-            <Trash2 className="w-4 h-4" strokeWidth={1.8} />
-          </button>
+              <button
+                onClick={onDelete}
+                title="Eliminar"
+                aria-label="Eliminar"
+                className={`${actionBtn} text-zinc-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10`}
+              >
+                <Trash2 className="w-4.5 h-4.5" strokeWidth={1.8} />
+              </button>
+              {!isClosed && (
+                <button
+                  onClick={onEdit}
+                  title="Editar pedido"
+                  aria-label="Editar pedido"
+                  className={`${actionBtn} text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800`}
+                >
+                  <Pencil className="w-4.5 h-4.5" strokeWidth={1.8} />
+                </button>
+              )}
+              <button
+                onClick={onPrint}
+                title="Imprimir ticket"
+                aria-label="Imprimir ticket"
+                className={`${actionBtn} text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800`}
+              >
+                <Printer className="w-4.5 h-4.5" strokeWidth={1.8} />
+              </button>
+              {isClosed && (
+                <button
+                  onClick={onReorder}
+                  title={`Nuevo pedido para la mesa ${order.tableNumber}`}
+                  aria-label={`Nuevo pedido para la mesa ${order.tableNumber}`}
+                  className={`${actionBtn} text-zinc-500 hover:text-teal-700 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-500/10`}
+                >
+                  <RotateCcw className="w-4.5 h-4.5" strokeWidth={1.8} />
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -286,10 +315,8 @@ export default function OrdersManager() {
 
   const COMPLETED_PAGE_SIZE = 30;
 
-  // Pedidos completados (mesa ya cerrada y cobrada): un restaurante con
-  // años de historial puede tener decenas de miles, así que se piden
-  // paginados con cursor y solo cuando la sección está visible — nunca de
-  // golpe.
+  // Pedidos completados: pueden ser decenas de miles, así que van
+  // paginados con cursor y solo se piden cuando la sección está visible.
   const {
     data: completedPages,
     isLoading: completedLoading,
@@ -619,7 +646,7 @@ export default function OrdersManager() {
       {/* Pedidos activos */}
       {!viewingCompletedOnly &&
         (loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[1920px]:grid-cols-6 min-[2560px]:grid-cols-7 gap-3">
+          <div className={SKELETON_GRID_CLASSES}>
             {Array.from({ length: 8 }).map((_, i) => (
               <div
                 key={i}
@@ -635,11 +662,8 @@ export default function OrdersManager() {
           </div>
         ) : (
           // Layout tipo masonry en vez de grid clásico, para que cada
-          // tarjeta ocupe solo el alto que necesita sin desperdiciar
-          // espacio.
-          <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 2xl:columns-5 min-[1920px]:columns-6 min-[2560px]:columns-7 gap-3">
-            {filtered.map(renderOrderCard)}
-          </div>
+          // tarjeta ocupe solo el alto que necesita sin desperdiciar espacio.
+          <div className={MASONRY_CLASSES}>{filtered.map(renderOrderCard)}</div>
         ))}
 
       {/* Pedidos completados: aparte y paginados — nunca de golpe */}
@@ -660,7 +684,7 @@ export default function OrdersManager() {
               {completedError}
             </div>
           ) : completedLoading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[1920px]:grid-cols-6 min-[2560px]:grid-cols-7 gap-3">
+            <div className={SKELETON_GRID_CLASSES}>
               {Array.from({ length: 4 }).map((_, i) => (
                 <div
                   key={i}
@@ -676,7 +700,7 @@ export default function OrdersManager() {
             </div>
           ) : (
             <>
-              <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 2xl:columns-5 min-[1920px]:columns-6 min-[2560px]:columns-7 gap-3">
+              <div className={MASONRY_CLASSES}>
                 {completedOrders.map(renderOrderCard)}
               </div>
               {hasMoreCompleted && (
